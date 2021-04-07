@@ -45,8 +45,9 @@ function messageCallback(e) {
         const face = new THREE.Face3(index1, index2, index3);
         geometry.faces.push(face);
     }
-    //geometry.faceVertexUvs = uvs;
-    //geometry.uvsNeedUpdate = true;
+    var ddata = [];
+    ddata.push(uvs);
+    geometry.faceVertexUvs = ddata;
 
     geometry.computeVertexNormals();
     geometry.computeFaceNormals();
