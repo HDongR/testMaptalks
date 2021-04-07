@@ -20,7 +20,7 @@ for (var i = 0 ; i< 65 ; i++) {
   var v = 1.0-(i*1.0/64.0);
   for (var j=0 ; j<65 ; j++) {
      var u = j*(1.0/64.0);
-     var uv = [u, v];
+     var uv = new THREE.Vector2(u, v);
      uvs.push(uv);
     //uvs.push({u,v});
   }
@@ -44,18 +44,22 @@ function messageCallback(e) {
         // }
         const face = new THREE.Face3(index1, index2, index3);
         geometry.faces.push(face);
+        
+        //geometry.faceVertexUvs[0].push([Math.random(), Math.random(), Math.random()]);
+        geometry.faceVertexUvs[0].push([uvs[index1], uvs[index2], uvs[index3]]);
     }
-    var ddata = [];
-    ddata.push(uvs);
-    geometry.faceVertexUvs = ddata;
+    // var ddata = [];
+    // ddata.push(uvs);
+    // geometry.faceVertexUvs = ddata;
 
     geometry.computeVertexNormals();
     geometry.computeFaceNormals();
-    // geometry.computeFlatVertexNormals();
-    // geometry.computeMorphNormals();
+    geometry.computeFlatVertexNormals();
+    geometry.computeMorphNormals();
+    geometry.mergeVertices();
     const buffGeom = new THREE.BufferGeometry();
     buffGeom.fromGeometry(geometry);
-    buffGeom.addAttribute('uv',new THREE.BufferAttribute(new Float32Array(uvs), 2));
+    // buffGeom.addAttribute('uv',new THREE.BufferAttribute(new Float32Array(uvs), 2));
     buffGeom.removeAttribute('color');
 
 
@@ -148,13 +152,15 @@ class Terrain extends maptalks.BaseObject {
       const { buffGeom, minHeight } = getGeometry(data, layer, (buffGeom) => {
           this.getObject3d().geometry = buffGeom;
           this.getObject3d().geometry.needsUpdate = true;
+
+          textureLoader.load('/tiles/image/tile_281396_113916.jpeg',function(tx){
+            material.map = tx;
+            //material.flatShading = false,
+            material.needsUpdate = true;
+          });
       });
      
-      // textureLoader.load('/tiles/image/tile_281396_113916.jpeg',function(tx){
-      //   material.map = tx;
-      //   material.needsUpdate = true;
-      //   material.wireframe = true; 
-      // });
+      
 
       this._createMesh(buffGeom, material);
       const z = layer.distanceToVector3(options.altitude, options.altitude).x;
@@ -270,14 +276,7 @@ quake.setThreeLayer = function(){
             object.position.x = v.x;
             object.position.y = v.y;
             object.position.z = 0.1019727304665139;
-            scene.add(object);
-
-            // var model=quake.threeLayer.toModel(object,{
-            //     coordinate:quake.map.getCenter(),
-            //     altitude:1000
-            // });
-
-            // quake.threeLayer.addMesh(model);
+           // scene.add(object);
 
            
             mtlLoaded = true;
@@ -320,9 +319,9 @@ quake.set3DTile = function(){
       j[2] = Number(j[2]);
       pdata.push(j);
     });
-    var colo_r ='0x2685a7';
-    var material = new THREE.MeshPhongMaterial({color: colo_r});
-    material.wireframe = true;
+   
+    var material = new THREE.MeshBasicMaterial({side:THREE.BackSide});
+   // material.wireframe = true;
     const terrain = new Terrain(pdata, { interactive: false }, material, quake.threeLayer);
     terrains.push(terrain);
     quake.threeLayer.addMesh(terrains);
