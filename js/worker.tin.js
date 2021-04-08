@@ -40,7 +40,7 @@ onmessage = function (e) {
         }
         fs.push(index1, index2, index3);
     }
-    results.faces = fs;
+    results.faces = faces;
     delete results.result;
     this.postMessage(results);
 };

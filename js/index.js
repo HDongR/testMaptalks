@@ -7,14 +7,6 @@ var quake = {
 
 const textureLoader = new THREE.TextureLoader();
 
-var tinWorker;
-function getTinWorker() {
-    if (!tinWorker) {
-        tinWorker = new Worker('./js/worker.tin.js');
-    }
-    return tinWorker;
-}
-
 var uvs = [];
 for (var i = 0 ; i< 65 ; i++) {
   var v = 1.0-(i*1.0/64.0);
@@ -45,18 +37,14 @@ function messageCallback(e) {
         const face = new THREE.Face3(index1, index2, index3);
         geometry.faces.push(face);
         
-        //geometry.faceVertexUvs[0].push([Math.random(), Math.random(), Math.random()]);
         geometry.faceVertexUvs[0].push([uvs[index1], uvs[index2], uvs[index3]]);
     }
-    // var ddata = [];
-    // ddata.push(uvs);
-    // geometry.faceVertexUvs = ddata;
 
-    geometry.computeVertexNormals();
-    geometry.computeFaceNormals();
-    geometry.computeFlatVertexNormals();
-    geometry.computeMorphNormals();
-    geometry.mergeVertices();
+    // geometry.computeVertexNormals();
+    // geometry.computeFaceNormals();
+    // geometry.computeFlatVertexNormals();
+    // geometry.computeMorphNormals();
+    // geometry.mergeVertices();
     const buffGeom = new THREE.BufferGeometry();
     buffGeom.fromGeometry(geometry);
     // buffGeom.addAttribute('uv',new THREE.BufferAttribute(new Float32Array(uvs), 2));
@@ -67,6 +55,37 @@ function messageCallback(e) {
         callback(buffGeom);
         delete geometryCacahe[id];
     }
+}
+var workerCount = 5;
+var tinWorkers = [];
+var currentWorker = 0;
+var tinWorker;
+for(var i=0; i<workerCount; i++){
+  
+  tinWorkers.push({id:i, itnWorker:new Worker('./js/worker.tin.js')});
+}
+
+function getTinWorker() {
+  var tt;
+  tinWorkers.some(el => {
+    if(el.id == currentWorker){
+      if(el.itnWorker){
+        tt = el.itnWorker;
+        return true;
+      }
+    }
+  });
+  
+  currentWorker++;
+  if(currentWorker >= workerCount){
+    currentWorker = 0;
+  }
+
+  return tt;
+    // if (!tinWorker) {
+    //     tinWorker = new Worker('./js/worker.tin.js');
+    // }
+    // return tinWorker;
 }
 
 function getGeometry(data = [], layer, callback) {
@@ -133,10 +152,19 @@ function getGeometry(data = [], layer, callback) {
   };
   console.log('worker runing');
   console.time(timeId);
-  pushQueue(getTinWorker(), { points, id, indexMap, zs, minZ }, messageCallback);
+  message(getTinWorker(), { points, id, indexMap, zs, minZ }, messageCallback);
   return {
       buffGeom, minHeight
   };
+}
+
+function message(worker, params, callback) {
+  
+      worker.postMessage(params);
+      runing = true;
+      worker.onmessage = (e) => {
+          callback(e);
+      };
 }
 
 //default values
@@ -144,7 +172,7 @@ const OPTIONS = {
   altitude: 0
 };
 class Terrain extends maptalks.BaseObject {
-  constructor(data, options, material, layer) {
+  constructor(txt, data, options, material, layer) {
       options = maptalks.Util.extend({ data, layer }, OPTIONS, options);
       super();
       this._initOptions(options);
@@ -152,8 +180,8 @@ class Terrain extends maptalks.BaseObject {
       const { buffGeom, minHeight } = getGeometry(data, layer, (buffGeom) => {
           this.getObject3d().geometry = buffGeom;
           this.getObject3d().geometry.needsUpdate = true;
-
-          textureLoader.load('/tiles/image/tile_281396_113916.jpeg',function(tx){
+          var st = 'tile_' + txt.substring(13, 26) + '.jpeg';
+          textureLoader.load('/tiles/image/' + st, function(tx){
             material.map = tx;
             //material.flatShading = false,
             material.needsUpdate = true;
@@ -275,8 +303,8 @@ quake.setThreeLayer = function(){
             var v = quake.threeLayer.coordinateToVector3({x:129.15087890625,y:35.1529541015625});
             object.position.x = v.x;
             object.position.y = v.y;
-            object.position.z = 0.1019727304665139;
-           // scene.add(object);
+            object.position.z = 0.3019727304665139;
+            //scene.add(object);
 
            
             mtlLoaded = true;
@@ -309,26 +337,53 @@ quake.setThreeLayer = function(){
 var terrains = [];
 
 quake.set3DTile = function(){
-  fetch('/tiles/lonlatfile/terrain_file_281396_113916.txt').then(res => res.text()).then(evadata => {
-    let data = evadata.split("\n");
-    let pdata = [];
-    data.forEach(v =>{
-      let j = v.split(",");
-      j[0] = Number(j[0]);
-      j[1] = Number(j[1]);
-      j[2] = Number(j[2]);
-      pdata.push(j);
-    });
-   
-    var material = new THREE.MeshBasicMaterial({side:THREE.BackSide});
-   // material.wireframe = true;
-    const terrain = new Terrain(pdata, { interactive: false }, material, quake.threeLayer);
-    terrains.push(terrain);
-    quake.threeLayer.addMesh(terrains);
 
-
-    animation();
+  var directory = '/tiles/lonlatfile';
+  var xmlHttp = new XMLHttpRequest();
+  xmlHttp.open('GET', directory, false); // false for synchronous request
+  xmlHttp.send(null);
+  var ret = xmlHttp.responseText;
+  const toNodes = new DOMParser().parseFromString(ret, 'text/html').body.childNodes[2].nextElementSibling.childNodes[3];//.childNodes[1];
+  var k = 0;
+  let txtList = [];
+  toNodes.childNodes.forEach(el =>{
+    if(el.nodeName == 'LI'){
+      if(k > 0){
+        //console.log(el.childNodes[0].childNodes[0].innerHTML);
+        txtList.push(el.childNodes[0].childNodes[0].innerHTML);
+      }
+      k++;
+    }
   });
+
+  
+
+  txtList.forEach(txt => {
+    fetch('/tiles/lonlatfile/' + txt).then(res => res.text()).then(evadata => {
+      let data = evadata.split("\n");
+      let pdata = [];
+      data.forEach(v =>{
+        if(v.length > 0){ 
+          let j = v.split(",");
+          j[0] = Number(j[0]);
+          j[1] = Number(j[1]);
+          j[2] = Number(j[2]);
+          pdata.push(j);
+        }
+      });
+      var material = new THREE.MeshBasicMaterial({side:THREE.BackSide});
+      //var material = new THREE.MeshBasicMaterial({color: 'hsl(0,100%,50%)',side:THREE.BackSide});
+      //material.opacity = 0.9;
+      //material.wireframe = true;
+      const terrain = new Terrain(txt, pdata, { interactive: false }, material, quake.threeLayer);
+      terrains.push(terrain);
+      quake.threeLayer.addMesh(terrains);
+      //animation();
+    });
+    console.log('txt');
+  });
+  
+  
 }
 
 
@@ -339,12 +394,13 @@ function update() {
   var center = quake.map.getCenter(),
     prj = projection.project(center),
     containerPoint = quake.map.coordinateToContainerPoint(center).round();
+  var zoom = quake.map.getZoom();
 
   document.getElementById('coordinate').innerHTML = '<div><br><br>' + [
     'Center : [' + center.x.toFixed(5) + ', ' + center.y.toFixed(5) + ']',
     'Projected Coordinate : [' + prj.x.toFixed(5) + ', ' + prj.y.toFixed(5) + ']',
-    'ContainerPoint is the screen position in px from northwest of the map container.',
-    'ContainerPoint : [' + containerPoint.x + ', ' + containerPoint.y + ']'
+    'ContainerPoint : [' + containerPoint.x + ', ' + containerPoint.y + ']' +
+    'Zoom : [' + zoom + ']'
   ].join('<br>') + '</div>';
 }
 
