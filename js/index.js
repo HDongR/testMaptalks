@@ -317,7 +317,7 @@ quake.setThreeLayer = function(){
   }
   quake.threeLayer.addTo(quake.map);
   
-  quake.map.on('moving moveend zoomend', update);
+  quake.map.on('moving moveend zoomend pitch rotate', update);
   
   update();
 
@@ -395,12 +395,19 @@ function update() {
     prj = projection.project(center),
     containerPoint = quake.map.coordinateToContainerPoint(center).round();
   var zoom = quake.map.getZoom();
+  var fullExtent = quake.map.getFullExtent();
+  var containerExtent = quake.map.getContainerExtent();
+  var extent = quake.map.getExtent();
+  var projExtent = quake.map.getProjExtent();
+  var maxExtent = quake.map.getMaxExtent();
+  var zoomMax = quake.map.getMaxZoom();
+  var zoomMin = quake.map.getMinZoom();
+  var resolution = quake.map.getResolution(zoom);
 
   document.getElementById('coordinate').innerHTML = '<div><br><br>' + [
     'Center : [' + center.x.toFixed(5) + ', ' + center.y.toFixed(5) + ']',
     'Projected Coordinate : [' + prj.x.toFixed(5) + ', ' + prj.y.toFixed(5) + ']',
-    'ContainerPoint : [' + containerPoint.x + ', ' + containerPoint.y + ']' +
-    'Zoom : [' + zoom + ']'
+    'Zoom : [' + zoom + ']' + ' minLon minLat: ' + extent.ymin + ' ' + extent.xmin + ' maxLon maxLat: ' + extent.ymax + ' ' + extent.xmax
   ].join('<br>') + '</div>';
 }
 
