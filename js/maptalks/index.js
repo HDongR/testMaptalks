@@ -21,7 +21,7 @@ for (var i = 0 ; i< 65 ; i++) {
 
 var geometryCacahe = {};
 function messageCallback(e) {
-    console.log('worker message callback');
+    //console.log('worker message callback');
     const { id, faces } = e.data;
     const { _positions, callback, timeId } = geometryCacahe[id];
     console.timeEnd(timeId);
@@ -56,13 +56,23 @@ function messageCallback(e) {
         delete geometryCacahe[id];
     }
 }
-var workerCount = 5;
-var tinWorkers = [];
+
+var hardwareConcurrency = typeof window !== 'undefined' ? window.navigator.hardwareConcurrency || 4 : 0;
+var workerCount = Math.max(Math.floor(hardwareConcurrency / 2), 1);
 var currentWorker = 0;
-var tinWorker;
-for(var i=0; i<workerCount; i++){
-  
-  tinWorkers.push({id:i, itnWorker:new Worker('/js/maptalks/worker.tin.js')});
+var tinWorkers = [];
+
+function terminateWorkerThread(){
+  tinWorkers.forEach(tin=>{
+    tin.terminate();
+  });
+}
+
+function createWorkerThread(){
+  var tinWorker;
+  for(var i=0; i<workerCount; i++){
+    tinWorkers.push({id:i, itnWorker:new Worker('/js/maptalks/worker.tin.js')});
+  }
 }
 
 function getTinWorker() {
@@ -150,7 +160,7 @@ function getGeometry(data = [], layer, callback) {
       timeId,
       callback
   };
-  console.log('worker runing');
+  //console.log('worker runing');
   console.time(timeId);
   setTimeout(message(getTinWorker(), { points, id, indexMap, zs, minZ }, messageCallback), Math.random() * 100);
   return {
@@ -171,8 +181,9 @@ function message(worker, params, callback) {
 const OPTIONS = {
   altitude: 0
 };
+
 class Terrain extends maptalks.BaseObject {
-  constructor(txt, data, options, material, layer) {
+  constructor(param, data, options, material, layer) {
       options = maptalks.Util.extend({ data, layer }, OPTIONS, options);
       super();
       this._initOptions(options);
@@ -180,39 +191,26 @@ class Terrain extends maptalks.BaseObject {
       const { buffGeom, minHeight } = getGeometry(data, layer, (buffGeom) => {
           this.getObject3d().geometry = buffGeom;
           this.getObject3d().geometry.needsUpdate = true;
-          var address = "http://xdworld.vworld.kr:8080/XDServer/requestLayerNode?APIKey=3529523D-2DBA-36B8-98F5-357E880AC0EE&Layer=" + "tile" + "&Level=" + txt.level + "&IDX=" + txt.IDX + "&IDY=" + txt.IDY;
-          // fetch(address).then(r=>{
-          //   var st = 'tile_' + txt.substring(13, 26) + '.jpeg';
-            textureLoader.load(address, function(tx){
-              material.map = tx;
-              //material.flatShading = false,
-              material.needsUpdate = true;
-            });
-          // });
-          
+          var address = "http://xdworld.vworld.kr:8080/XDServer/requestLayerNode?APIKey=3529523D-2DBA-36B8-98F5-357E880AC0EE&Layer=" + "tile" + "&Level=" + param.level + "&IDX=" + param.IDX + "&IDY=" + param.IDY;
+
+          textureLoader.load(address, function(tx){
+            const key = param.layer + "-" + param.level + "-" + param.IDX + "-" + param.IDY;
+            cacheTerrian[key].isJpeg = true;
+            material.map = tx;
+            material.needsUpdate = true;
+          });
+        
       });
-     
-      
 
       this._createMesh(buffGeom, material);
       const z = layer.distanceToVector3(options.altitude, options.altitude).x;
       this.getObject3d().position.z = z;
-      
-      // var img = "/tiles/image/tile_281396_113916.jpeg";
-      // var imgElement = document.createElement("img");
-      // imgElement.setAttribute("src", img);
-
-      // material.transparent = true;
-      // textureLoader.load(imgElement.src, (texture) => {
-      //   material.map = texture;
-      //   material.opacity = 1;
-      //   material.needsUpdate = true;
-      //   this.fire('load');
-      // });
   }
 }
 
 quake.viewMap = function(){
+  terminateWorkerThread();
+  createWorkerThread();
   quake.setBaseLayer();
   quake.setThreeLayer();
   //quake.set3DTile();
@@ -255,7 +253,7 @@ quake.setBaseLayer = function() {
   quake.map = new maptalks.Map("map", {
       center: [129.15158, 35.15361],
       zoom: 15,
-      maxZoom: 20,
+      maxZoom: 18,
       minZoom: 9,
       centerCross : true,
       spatialReference:{
@@ -362,8 +360,6 @@ quake.set3DTile = function(){
     }
   });
 
-  
-
   txtList.forEach(txt => {
     fetch('/tiles/lonlatfile/' + txt).then(res => res.text()).then(evadata => {
       let data = evadata.split("\n");
@@ -386,92 +382,154 @@ quake.set3DTile = function(){
       quake.threeLayer.addMesh(terrains);
       //animation();
     });
-    console.log('txt');
   });
-  
-  
 }
 
 let fetchCnt = 0;
-let cacche
+let fetchThreshold = 1000000;
+let cacheTerrian = {};
+let allowZoom = function(zoom){
+  if(zoom <= 9){
+    return 9;
+  }else if(zoom > 9 && zoom < 15){
+    return 12;
+  }else if(zoom >= 15){
+    return 15
+  }
+};
 
 function update() {
   var tileGrids = quake.map._baseLayer.getTiles().tileGrids;
   var zoom = quake.map.getZoom();
-  var resolution = quake.map.getResolution(zoom);
-  if(fetchCnt == 0){
-  tileGrids.forEach(tileGrid => {
-    var xmin = tileGrid.extent.xmin * resolution;
-    var ymin = tileGrid.extent.ymin * resolution;
+  
+  //level = allowZoom(level);
 
-    var xmax = tileGrid.extent.xmax * resolution;
-    var ymax = tileGrid.extent.ymax * resolution;
+  // if(tileGrids.length >= 2){
+  //   return;
+  // }
+  if(fetchCnt < fetchThreshold){
+    let showKeyList = {};
 
-    console.log(tileGrid.zoom, xmin, ymin, xmax,  ymax);
-    var coordMin = quake.map.getProjection().unproject({x:xmin, y:ymin});
-    var coordMax = quake.map.getProjection().unproject({x:xmax, y:ymax});
-
-    const level = zoom - 3;
-    let unit = 360 / (Math.pow(2, level) * 10);
-    let minIdx = Math.floor((coordMin.x+180)/unit);
-		let minIdy = Math.floor((coordMin.y+90)/unit);
-		let maxIdx = Math.floor((coordMax.x+180)/unit);
-		let maxIdy = Math.floor((coordMax.y+90)/unit);
-
-    console.log(minIdx, minIdy, maxIdx, maxIdy);
-    console.log(tileGrid.zoom, coordMin, coordMax);
-
-    var idxIdyList = Array.from(Array((maxIdx-minIdx+1)*(maxIdy-minIdy+1)), () => new Array(2));
-		var index = 0;
-		for (var i=minIdx ; i<=maxIdx ; i++) {
-			for (var j=minIdy ; j<=maxIdy; j++) {
-				idxIdyList[index][0] = i+"";
-				idxIdyList[index][1] = j+"";
-				index++;
-			}
-		}		
-
-    for (var i=0 ; i<idxIdyList.length ; i++) {
-      const IDX = idxIdyList[i][0];
-      const IDY = idxIdyList[i][1];
-      const layer = "dem";
-      var address = "http://xdworld.vworld.kr:8080/XDServer/requestLayerNode?APIKey=3529523D-2DBA-36B8-98F5-357E880AC0EE&Layer=" + layer + "&Level=" + level + "&IDX=" + IDX + "&IDY=" + IDY;
-      
-      fetch(address).then(r=>{
-        const size = r.headers.get("content-length");
-        if(size >= 16900){
-          r.arrayBuffer().then(function(buffer) {
-            //var byteArray = new Uint8Array(buffer);
-            p = new Parser(buffer);
-
-            let x = unit * (IDX - (Math.pow(2, level-1)*10));
-            let y = unit * (IDY - (Math.pow(2, level-2)*10));
-            let pdata = [];
-            for(var yy=64; yy>=0; yy--){
-              for(var xx=0; xx<65; xx++){
-                let xDegree = x+(unit/64)*xx;
-                let yDegree = y+(unit/64)*yy;
-                let height = p.getFloat4();
-
-                pdata.push([xDegree, yDegree, height]);
-                //console.log(xDegree, yDegree, height);
-              }
-            }
-            //console.log(r);
-            var material = new THREE.MeshBasicMaterial({side:THREE.BackSide});
-                //var material = new THREE.MeshBasicMaterial({color: 'hsl(0,100%,50%)',side:THREE.BackSide});
-                //material.opacity = 0.9;
-                //material.wireframe = true;
-            const terrain = new Terrain({IDX,IDY,layer,level}, pdata, { interactive: false }, material, quake.threeLayer);
-            terrains.push(terrain);
-            quake.threeLayer.addMesh(terrains);
-          });
+    for(var kk = 0; kk<tileGrids.length; kk++){
+      tileGrid = tileGrids[kk];
+      var resolution = 0;
+      if(tileGrids.length == 1){
+        resolution = quake.map.getResolution(tileGrid.zoom);
+      }else if(tileGrids.length == 2){
+        if(kk == 0){
+          resolution = quake.map.getResolution(tileGrid.zoom - 1);
+        }else if(kk == 1){
+          resolution = quake.map.getResolution(tileGrid.zoom);
         }
-      });
+      }else if(tileGrids.length == 3){
+        if(kk == 0){
+          resolution = quake.map.getResolution(tileGrid.zoom - 1);
+        }else if(kk == 1 && kk == 2){
+          resolution = quake.map.getResolution(tileGrid.zoom);
+        }
+      }
+      let level = tileGrid.zoom - 4;
+
+      var xmin = tileGrid.extent.xmin * resolution;
+      var ymin = tileGrid.extent.ymin * resolution;
+
+      var xmax = tileGrid.extent.xmax * resolution;
+      var ymax = tileGrid.extent.ymax * resolution;
+      if(xmin == 0 && ymin == 0 && xmax == 0 && ymax == 0){
+        continue;
+      }
+      //console.log(tileGrid.zoom, xmin, ymin, xmax,  ymax);
+      var coordMin = quake.map.getProjection().unproject({x:xmin-0.1, y:ymin-1});
+      var coordMax = quake.map.getProjection().unproject({x:xmax+0.1, y:ymax+1});
+
+     
+      if(level > 15){
+        level = 15;
+      }
+      let unit = 360 / (Math.pow(2, level) * 10);
+      let minIdx = Math.floor((coordMin.x+180)/unit);
+      let minIdy = Math.floor((coordMin.y+90)/unit);
+      let maxIdx = Math.floor((coordMax.x+180)/unit);
+      let maxIdy = Math.floor((coordMax.y+90)/unit);
+      //console.log(minIdx, minIdy, maxIdx, maxIdy);
+      //console.log(tileGrid.zoom, coordMin, coordMax);
+
+      var idxIdyList = Array.from(Array((maxIdx-minIdx+1)*(maxIdy-minIdy+1)), () => new Array(2));
+      var index = 0;
+      for (var i=minIdx ; i<=maxIdx ; i++) {
+        for (var j=minIdy ; j<=maxIdy; j++) {
+          idxIdyList[index][0] = i+"";
+          idxIdyList[index][1] = j+"";
+          index++;
+        }
+      }		
+
+      
+      for (var i=0 ; i<idxIdyList.length ; i++) {
+        const IDX = idxIdyList[i][0];
+        const IDY = idxIdyList[i][1];
+        const layer = "dem";
+        let address = "http://xdworld.vworld.kr:8080/XDServer/requestLayerNode?APIKey=3529523D-2DBA-36B8-98F5-357E880AC0EE&Layer=" + layer + "&Level=" + level + "&IDX=" + IDX + "&IDY=" + IDY;
+     
+        const key = layer + "-" + level + "-" + IDX + "-" + IDY;
+        showKeyList[key] = key;
+        const cache = cacheTerrian[key];
+        if(cache && cache.demUrl == address){
+          continue;
+        }
+       
+        cacheTerrian[key] = {id:key, isData:false, isFetch:true, isJpeg:false, demUrl:address, terrian:null};
+        fetch(address).then(r=>{
+          const size = r.headers.get("content-length");
+          if(size >= 16900){
+            r.arrayBuffer().then(function(buffer) {
+              //var byteArray = new Uint8Array(buffer);
+              p = new Parser(buffer);
+
+              let x = unit * (IDX - (Math.pow(2, level-1)*10));
+              let y = unit * (IDY - (Math.pow(2, level-2)*10));
+              let pdata = [];
+              for(var yy=64; yy>=0; yy--){
+                for(var xx=0; xx<65; xx++){
+                  let xDegree = x+(unit/64)*xx;
+                  let yDegree = y+(unit/64)*yy;
+                  let height = p.getFloat4();
+
+                  pdata.push([xDegree, yDegree, height]);
+                  //console.log(xDegree, yDegree, height);
+                }
+              }
+              //console.log(r);
+              var material = new THREE.MeshBasicMaterial({side:THREE.BackSide});
+                  //var material = new THREE.MeshBasicMaterial({color: 'hsl(0,100%,50%)',side:THREE.BackSide});
+                  //material.opacity = 0.9;
+                  //material.wireframe = true;
+              const terrain = new Terrain({layer,level,IDX,IDY}, pdata, {interactive: false}, material, quake.threeLayer);
+              //terrains.push({terrain, key});
+              quake.threeLayer.addMesh(terrain);
+
+              cacheTerrian[key].terrian = terrain;
+              cacheTerrian[key].isData = true;
+
+            });
+          }
+        });
+        
+      }
     }
 
-  });
-  fetchCnt++;
+    for(var k in cacheTerrian){
+      let ct = cacheTerrian[k].terrian;
+      if(!ct){
+        continue;
+      }
+      if(showKeyList[k]){
+        ct.show();
+      }else{
+        ct.hide();
+      }
+    }
+    fetchCnt++;
   }
 
   
@@ -507,154 +565,4 @@ function animation() {
   stats.update();
   requestAnimationFrame(animation);
 
-}
-
-class Parser {
-  constructor(data) {
-      this.dv = new DataView(data);
-      this.endian = true;
-      this.offset = 0;
-  }
-
-  getUint4() {
-      const val = this.dv.getUint32(this.offset, this.endian);
-      this.offset += 4;
-      return val;
-  }
-
-  getUint1() {
-      const val = this.dv.getUint8(this.offset, this.endian);
-      this.offset += 1;
-      return val;
-  }
-
-  getUint2() {
-      const val = this.dv.getUint16(this.offset, this.endian);
-      this.offset += 2;
-      return val;
-  }
-
-  getLenStr() {
-      const len = this.getUint1();
-
-      var str = "";
-      var val = "";
-      for (var i = 0; i < len; i++) {
-          val = this.getUint1();
-          str += String.fromCharCode(val);
-      }
-      return {
-          len: len,
-          str: str,
-      };
-  }
-
-  getFloat8() {
-      const val = this.dv.getFloat64(this.offset, this.endian);
-      this.offset += 8;
-      return val;
-  }
-
-  getFloat4() {
-      const val = this.dv.getFloat32(this.offset, this.endian);
-      this.offset += 4;
-      return val;
-  }
-
-  getVersion() {
-      const val = `${this.getUint1()}.${this.getUint1()}.${this.getUint1()}.${this.getUint1()}`;
-      return val;
-  }
-
-  getBox() {
-      var minX = this.getFloat8();
-      var maxX = this.getFloat8();
-      var minY = this.getFloat8();
-      var maxY = this.getFloat8();
-      var minZ = this.getFloat8();
-      var maxZ = this.getFloat8();
-      return {
-          minX: minX,
-          maxX: maxX,
-          minY: minY,
-          maxY: maxY,
-          minZ: minZ,
-          maxZ: maxZ
-      }
-  }
-
-  getVector2df() {
-      var x = this.getFloat4();
-      var y = this.getFloat4();
-      return {
-          x: x,
-          y: y
-      }
-  }
-
-  getVector3df() {
-      var x = this.getFloat4();
-      var y = this.getFloat4();
-      var z = this.getFloat4();
-      return {
-          x: x,
-          y: y,
-          z: z
-      }
-  }
-
-  getVector3dd() {
-      var x = this.getFloat8();
-      var y = this.getFloat8();
-      var z = this.getFloat8();
-      return {
-          x: x,
-          y: y,
-          z: z
-      }
-  }
-
-  //http://irrlicht.sourceforge.net/docu/structirr_1_1video_1_1_s3_d_vertex.html
-  getCountVert() {
-      const count = this.getUint4();
-      var vert = [];
-      for (var i = 0; i < count; i++) {
-          const pos = this.getVector3df();
-          const normal = this.getVector3df();
-          const uv = this.getVector2df();
-
-          vert.push({
-              pos: pos,
-              normal: normal,
-              uv: uv
-          })
-      }
-      return {
-          count: count,
-          vert: vert
-      };
-  }
-
-  getCountIndex() {
-      const count = this.getUint4();
-      var index = [];
-      for (var i = 0; i < count; i++) {
-          const val = this.getUint2();
-          index.push(val)
-      }
-      return {
-          count: count,
-          index: index
-      };
-  }
-
-
-  getBox3dd() {
-      const min = this.getVector3dd();
-      const max = this.getVector3dd();
-      return {
-          min: min,
-          max: max
-      }
-  }
 }
