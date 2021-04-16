@@ -252,7 +252,7 @@ quake.setBaseLayer = function() {
 
   quake.map = new maptalks.Map("map", {
       center: [129.15158, 35.15361],
-      zoom: 15,
+      zoom: 11,
       maxZoom: 18,
       minZoom: 9,
       centerCross : true,
@@ -397,8 +397,207 @@ let allowZoom = function(zoom){
     return 15
   }
 };
+function isFunction(obj) {
+  if (isNil(obj)) {
+    return false;
+  }
 
+  return typeof obj === 'function' || obj.constructor !== null && obj.constructor === Function;
+}
+function _getTileOffset(z) {
+  let _this = quake.map._baseLayer;
+  var map = _this.getMap();
+
+  var scale = map._getResolution() / map._getResolution(z);
+
+  var offset = _this.options['offset'];
+
+  if (isFunction(offset)) {
+    offset = offset(_this);
+  }
+
+  offset[0] *= scale;
+  offset[1] *= scale;
+  return offset;
+};
+
+var TEMP_POINT = new maptalks.Point(0, 0);
+var TEMP_POINT0$3 = new maptalks.Point(0, 0);
+var TEMP_POINT1$1 = new maptalks.Point(0, 0);
+var TEMP_POINT2 = new maptalks.Point(0, 0);
+var TEMP_POINT3 = new maptalks.Point(0, 0);
+var TEMP_POINT4 = new maptalks.Point(0, 0);
+var TEMP_POINT5 = new maptalks.Point(0, 0);
+var TEMP_POINT6 = new maptalks.Point(0, 0);
+
+
+function _getTiles(tileZoom, containerExtent, cascadeLevel, parentRenderer){
+  let _this = quake.map._baseLayer;
+  var map = _this.getMap();
+  var z = tileZoom;
+  var frustumMatrix = map.projViewMatrix;
+
+  if (cascadeLevel < 2) {
+    if (cascadeLevel === 0) {
+      z -= 1;
+    }
+
+    frustumMatrix = cascadeLevel === 0 ? map.cascadeFrustumMatrix0 : cascadeLevel === 1 ? map.cascadeFrustumMatrix1 : map.projViewMatrix;
+  }
+
+  var zoom = z + _this.options['zoomOffset'];
+
+  var offset = _this._getTileOffset(zoom),
+      hasOffset = offset[0] || offset[1];
+
+  var emptyGrid = {
+    'zoom': z,
+    'extent': null,
+    'offset': offset,
+    'tiles': []
+  };
+
+  if (zoom < 0) {
+    return emptyGrid;
+  }
+
+  var minZoom = _this.getMinZoom(),
+      maxZoom = _this.getMaxZoom();
+
+  if (!map || !_this.isVisible() || !map.width || !map.height) {
+    return emptyGrid;
+  }
+
+  if (!isNil(minZoom) && z < minZoom || !isNil(maxZoom) && z > maxZoom) {
+    return emptyGrid;
+  }
+
+  var tileConfig = _this._getTileConfig();
+
+  if (!tileConfig) {
+    return emptyGrid;
+  }
+
+  var sr = _this.getSpatialReference();
+  var mapSR = map.getSpatialReference();
+  var res = sr.getResolution(zoom);
+  var glScale = map.getGLScale(z);
+  var repeatWorld = sr === mapSR && _this.options['repeatWorld'];
+  var extent2d = containerExtent.convertTo(function (c) {
+    var result;
+
+    if (c.y > 0 && c.y < map.height) {
+      var key = (c.x === 0 ? 0 : 1) + c.y;
+
+      if (!_this._coordCache[key]) {
+        _this._coordCache[key] = map._containerPointToPoint(c);
+      }
+
+      result = _this._coordCache[key];
+    }
+
+    result = map._containerPointToPoint(c, undefined, TEMP_POINT);
+    return result;
+  });
+
+  extent2d._add(offset);
+
+  var prjCenter = map._containerPointToPrj(containerExtent.getCenter(), TEMP_POINT0$3);
+
+  var centerPoint = map._prjToPoint(prjCenter, undefined, TEMP_POINT1$1);
+
+  var c;
+
+  if (hasOffset) {
+    c = _this._project(map._pointToPrj(centerPoint._add(offset), undefined, TEMP_POINT1$1), TEMP_POINT1$1);
+  } else {
+    c = _this._project(prjCenter, TEMP_POINT1$1);
+  }
+
+  TEMP_POINT2.x = extent2d.xmin;
+  TEMP_POINT2.y = extent2d.ymax;
+  TEMP_POINT3.x = extent2d.xmax;
+  TEMP_POINT3.y = extent2d.ymin;
+
+  var pmin = _this._project(map._pointToPrj(TEMP_POINT2, undefined, TEMP_POINT2), TEMP_POINT2);
+  var pmax = _this._project(map._pointToPrj(TEMP_POINT3, undefined, TEMP_POINT3), TEMP_POINT3);
+
+  return {pmin, pmax, tileZoom};
+}
+function getTiles(z, parentLayer){
+  let _this = quake.map._baseLayer;
+  var map = _this.getMap();
+  var pitch = map.getPitch();
+  var parentRenderer = parentLayer && parentLayer.getRenderer();
+  var mapExtent = map.getContainerExtent();
+  var tileGrids = [];
+  var count = 0;
+  var minZoom = _this.getMinZoom();
+  var cascadePitch0 = map.options['cascadePitches'][0];
+  var cascadePitch1 = map.options['cascadePitches'][1];
+  var visualHeight1 = Math.floor(map._getVisualHeight(cascadePitch1));
+  var tileZoom = isNil(z) ? _this._getTileZoom(map.getZoom()) : z;
+  _this._coordCache = {};
+
+  if (!isNil(z) || !_this.options['cascadeTiles'] || pitch <= cascadePitch0 || !isNil(minZoom) && tileZoom <= minZoom) {
+    var containerExtent = pitch <= cascadePitch1 ? mapExtent : new maptalks.PointExtent(0, map.height - visualHeight1, map.width, map.height);
+
+    var _currentTiles = this._getTiles(tileZoom, containerExtent, 2, parentRenderer);
+
+    if (_currentTiles) {
+      tileGrids.push(_currentTiles);
+    }
+
+    return {
+      tileGrids: tileGrids
+    };
+  }
+
+  var visualHeight0 = Math.floor(map._getVisualHeight(cascadePitch0));
+  var extent0 = new maptalks.PointExtent(0, map.height - visualHeight0, map.width, map.height);
+
+  var currentTiles = this._getTiles(tileZoom, extent0, 0, parentRenderer);
+
+  tileGrids.push(currentTiles);
+  var cascadeHeight = extent0.ymin;
+  var d = map.getSpatialReference().getZoomDirection();
+  var cascadeLevels = d;
+  var cascadeTiles1;
+
+  if (pitch > cascadePitch1) {
+    if (tileZoom - cascadeLevels <= minZoom) {
+      cascadeLevels = 0;
+    }
+
+    var extent1 = new maptalks.PointExtent(0, map.height - visualHeight1, map.width, cascadeHeight);
+    cascadeTiles1 = this._getTiles(tileZoom - cascadeLevels, extent1, 1, parentRenderer);
+    cascadeHeight = extent1.ymin;
+    cascadeLevels += 4 * d;
+  }
+
+  var cascadeTiles2;
+
+  if (tileZoom - cascadeLevels >= minZoom) {
+    var extent2 = new maptalks.PointExtent(0, mapExtent.ymin, map.width, cascadeHeight);
+    cascadeTiles2 = this._getTiles(tileZoom - cascadeLevels, extent2, 2, parentRenderer);
+    tileGrids.push(cascadeTiles2);
+  }
+
+  if (cascadeTiles1 && cascadeTiles2) {
+    tileGrids[1] = cascadeTiles2;
+    tileGrids[2] = cascadeTiles1;
+  }
+
+  return {
+    tileGrids: tileGrids,
+    count: count
+  };
+};
+function isNil(obj) {
+  return obj == null;
+}
 function update() {
+  // var tileGrids = getTiles().tileGrids;//modify
   var tileGrids = quake.map._baseLayer.getTiles().tileGrids;
   var zoom = quake.map.getZoom();
   
@@ -407,6 +606,7 @@ function update() {
   // if(tileGrids.length >= 2){
   //   return;
   // }
+
   if(fetchCnt < fetchThreshold){
     let showKeyList = {};
 
@@ -424,23 +624,35 @@ function update() {
       }else if(tileGrids.length == 3){
         if(kk == 0){
           resolution = quake.map.getResolution(tileGrid.zoom - 1);
-        }else if(kk == 1 && kk == 2){
+        }else if(kk == 1){
+          continue;
+        } else if(kk == 2){
           resolution = quake.map.getResolution(tileGrid.zoom);
         }
       }
+
+      //resolution = quake.map.getResolution(tileGrid.zoom); //modify
+
       let level = tileGrid.zoom - 4;
+      //let level = tileGrid.tileZoom - 4; //modify
 
       var xmin = tileGrid.extent.xmin * resolution;
       var ymin = tileGrid.extent.ymin * resolution;
-
       var xmax = tileGrid.extent.xmax * resolution;
       var ymax = tileGrid.extent.ymax * resolution;
+
+      // var xmin = tileGrid.pmin.x;//modify
+      // var ymin = tileGrid.pmax.y;
+      // var xmax = tileGrid.pmax.x;
+      // var ymax = tileGrid.pmin.y;
+
+
       if(xmin == 0 && ymin == 0 && xmax == 0 && ymax == 0){
         continue;
       }
       //console.log(tileGrid.zoom, xmin, ymin, xmax,  ymax);
-      var coordMin = quake.map.getProjection().unproject({x:xmin-0.1, y:ymin-1});
-      var coordMax = quake.map.getProjection().unproject({x:xmax+0.1, y:ymax+1});
+      var coordMin = quake.map.getProjection().unproject({x:xmin, y:ymin});
+      var coordMax = quake.map.getProjection().unproject({x:xmax, y:ymax});
 
      
       if(level > 15){
@@ -464,7 +676,6 @@ function update() {
         }
       }		
 
-      
       for (var i=0 ; i<idxIdyList.length ; i++) {
         const IDX = idxIdyList[i][0];
         const IDY = idxIdyList[i][1];
@@ -478,7 +689,7 @@ function update() {
           continue;
         }
        
-        cacheTerrian[key] = {id:key, isData:false, isFetch:true, isJpeg:false, demUrl:address, terrian:null};
+        cacheTerrian[key] = {id:key, level:level, isData:false, isFetch:true, isJpeg:false, demUrl:address, terrian:null};
         fetch(address).then(r=>{
           const size = r.headers.get("content-length");
           if(size >= 16900){
@@ -519,7 +730,9 @@ function update() {
     }
 
     for(var k in cacheTerrian){
-      let ct = cacheTerrian[k].terrian;
+      let cs = cacheTerrian[k];
+      let ct = cs.terrian;
+      let level = cs.level;
       if(!ct){
         continue;
       }
@@ -529,6 +742,7 @@ function update() {
         ct.hide();
       }
     }
+    
     fetchCnt++;
   }
 
