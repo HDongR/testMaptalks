@@ -307,38 +307,38 @@ quake.setThreeLayer = function(){
     light.position.set(0, -10, 10).normalize();
     scene.add(light);
     
-    var mtlLoader = new THREE.MTLLoader();
-    mtlLoader.setPath( '/tiles/obj/' );
-    mtlLoader.load( 'mtl_281396_113916.mtl', function( materials ) {
-        materials.preload();
-        //change to back side with THREE <= v0.94
-        // for (const p in materials.materials) {
-        //     //change material's side to BackSide
-        //     materials.materials[p].side = THREE.BackSide;
-        // }
-        var objLoader = new THREE.OBJLoader();
-        objLoader.setMaterials( materials );
-        objLoader.setPath( '/tiles/obj/' );
-        objLoader.load( 'obj file_281396_113916.obj', function ( object ) {
-            object.traverse( function ( child ) {
-                if ( child instanceof THREE.Mesh ) {
-                  child.scale.set(0.0066, 0.0066, 0.0066);
-                  //child.rotation.set(Math.PI * 1 / 2, -Math.PI * 1 / 2, 0);
-                }
-            });
-            var v = quake.threeLayer.coordinateToVector3({x:129.15087890625,y:35.1529541015625});
-            object.position.x = v.x;
-            object.position.y = v.y;
-            object.position.z = 0.3019727304665139;
-            //scene.add(object);
+    // var mtlLoader = new THREE.MTLLoader();
+    // mtlLoader.setPath( '/tiles/obj/' );
+    // mtlLoader.load( 'mtl_281396_113916.mtl', function( materials ) {
+    //     materials.preload();
+    //     //change to back side with THREE <= v0.94
+    //     // for (const p in materials.materials) {
+    //     //     //change material's side to BackSide
+    //     //     materials.materials[p].side = THREE.BackSide;
+    //     // }
+    //     var objLoader = new THREE.OBJLoader();
+    //     objLoader.setMaterials( materials );
+    //     objLoader.setPath( '/tiles/obj/' );
+    //     objLoader.load( 'obj file_281396_113916.obj', function ( object ) {
+    //         object.traverse( function ( child ) {
+    //             if ( child instanceof THREE.Mesh ) {
+    //               child.scale.set(0.0066, 0.0066, 0.0066);
+    //               //child.rotation.set(Math.PI * 1 / 2, -Math.PI * 1 / 2, 0);
+    //             }
+    //         });
+    //         var v = quake.threeLayer.coordinateToVector3({x:129.15087890625,y:35.1529541015625});
+    //         object.position.x = v.x;
+    //         object.position.y = v.y;
+    //         object.position.z = 0.3019727304665139;
+    //         //scene.add(object);
 
            
-            mtlLoaded = true;
-            quake.threeLayer.renderScene();
-            quake.threeLayer.config('animation',true);
-        });
-    });
-
+    //         mtlLoaded = true;
+    //         quake.threeLayer.renderScene();
+    //         quake.threeLayer.config('animation',true);
+    //     });
+    // });
+    mtlLoaded = true
     animation();
   }
   quake.threeLayer.addTo(quake.map);
@@ -621,6 +621,7 @@ function isNil(obj) {
 function update() {
   quake.geojsonTest();
   return;
+
   // var tileGrids = getTiles().tileGrids;//modify
   var tileGrids = quake.map._baseLayer.getTiles().tileGrids;
   var zoom = quake.map.getZoom();
