@@ -257,7 +257,7 @@ quake.setBaseLayer = function() {
       minZoom: 9,
       centerCross : true,
       spatialReference:{
-         projection:'EPSG:3857'//map control 좌표계
+         projection:'EPSG:4326'//map control 좌표계
       },
       centerCross: true,
       doubleClickZoom: false,
@@ -598,9 +598,9 @@ function isNil(obj) {
 }
 function update() {
   // console.log(quake.map.getZoom());
-  // if(true){
-  //   return;
-  // }
+  if(true){
+    return;
+  }
   // var tileGrids = getTiles().tileGrids;//modify
   var tileGrids = quake.map._baseLayer.getTiles().tileGrids;
   var zoom = quake.map.getZoom();
@@ -783,4 +783,22 @@ function animation() {
   stats.update();
   requestAnimationFrame(animation);
 
+}
+
+function ctiles(){
+  var map = quake.map._baseLayer.getMap();
+  var pitch = quake.map._baseLayer.getPitch();
+  var mapExtent = quake.map._baseLayer.getContainerExtent();
+  var tileGrids = [];
+  var count = 0;
+  var minZoom = quake.map._baseLayer.getMinZoom();
+  var cascadePitch0 = quake.map._baseLayer.options['cascadePitches'][0];
+  var cascadePitch1 = quake.map._baseLayer.options['cascadePitches'][1];
+  var visualHeight1 = Math.floor(quake.map._baseLayer._getVisualHeight(cascadePitch1));
+  var tileZoom = quake.map._baseLayer._getTileZoom(quake.map._baseLayer.getZoom());
+
+
+  if (pitch <= cascadePitch0 || tileZoom <= minZoom) {
+    //1:1
+  }
 }
