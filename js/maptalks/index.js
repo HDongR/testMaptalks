@@ -24,7 +24,7 @@ function messageCallback(e) {
     //console.log('worker message callback');
     const { id, faces } = e.data;
     const { _positions, callback, timeId } = geometryCacahe[id];
-    console.timeEnd(timeId);
+    //console.timeEnd(timeId);
     const geometry = new THREE.Geometry();
     geometry.vertices = _positions;
     for (let i = 0, len = faces.length; i < len; i += 3) {
@@ -161,7 +161,7 @@ function getGeometry(data = [], layer, callback) {
       callback
   };
   //console.log('worker runing');
-  console.time(timeId);
+  //console.time(timeId);
   setTimeout(message(getTinWorker(), { points, id, indexMap, zs, minZ }, messageCallback), Math.random() * 100);
   return {
       buffGeom, minHeight
@@ -214,6 +214,28 @@ quake.viewMap = function(){
   quake.setBaseLayer();
   quake.setThreeLayer();
   //quake.set3DTile();
+
+  quake.geojsonTest();
+}
+let Id = 0;
+let worker;
+function getTinWorker2() {
+    if (!worker) {
+      worker = new Worker('/js/maptalks/testWorker.js');
+    }
+    return worker;
+}
+
+function messageCallback2(e) {
+  console.timeEnd(e.data.timeId.timeId);
+}
+
+quake.geojsonTest = function(){
+  Id++;
+  
+  let timeId= 'map' + Id;
+  console.time(timeId);
+  pushQueue(getTinWorker2(), { timeId }, messageCallback2);
 }
 
 quake.setBaseLayer = function() {
@@ -598,9 +620,9 @@ function isNil(obj) {
 }
 function update() {
   // console.log(quake.map.getZoom());
-  if(true){
-    return;
-  }
+  quake.geojsonTest();
+  return;
+
   // var tileGrids = getTiles().tileGrids;//modify
   var tileGrids = quake.map._baseLayer.getTiles().tileGrids;
   var zoom = quake.map.getZoom();

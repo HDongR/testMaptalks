@@ -15,11 +15,11 @@ function pushQueue(worker, params, callback) {
         callback
     });
     if (!runing) {
-        message();
+        message_();
     }
 }
 
-function message() {
+function message_() {
     if (queue.length > 0) {
         const { worker, params, callback } = queue[0];
         worker.postMessage(params);
@@ -28,7 +28,7 @@ function message() {
             callback(e);
             queue.splice(0, 1);
             //  循环消费
-            message();
+            message_();
         };
     } else {
         runing = false;
