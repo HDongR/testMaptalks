@@ -1,4 +1,4 @@
-importScripts('turf.tin.js');
+importScripts('/js/maptalks/turf.tin.js');
 
 
 onmessage = function (e) {

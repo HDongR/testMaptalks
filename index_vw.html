@@ -33,9 +33,8 @@ var mapOptions = new vw.MapOptions(
 );
 
 map = new vw.Map("vmap", mapOptions);
-setTimeout(
-map.moveTo({x:129.151807, y:35.153634}), 5000);
-console.log(map);
+
+vw.CoordPixcel
 // 도시계획(공공문화체육시설) WMS
 function setWMSLayer_CITYPLAN(){
     var circle = new vw.geom.Circle({x:127,y:37}, 200);

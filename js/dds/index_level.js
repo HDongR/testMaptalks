@@ -5,6 +5,138 @@ var quake = {
 //  geojsonVtLayer : {},
 };
 
+quake.viewMap = function(){
+  terminateWorkerThread();
+  createWorkerThread();
+  quake.setBaseLayer();
+  quake.setThreeLayer();
+  //quake.set3DTile();
+  loadLevel(11);
+}
+
+quake.setBaseLayer = function() {
+  //basemap : vworld
+ // var url = 'http://api.vworld.kr/req/wmts/1.0.0/' + properties.baseMapAPIKey + '/Base/{z}/{y}/{x}.png'
+
+  var setillayerUrl = 'http://api.vworld.kr/req/wmts/1.0.0/' + 'D6200AF4-16B4-3161-BE8E-1CCDD332A8E3' + '/Satellite/{z}/{y}/{x}.jpeg';
+  var setilLayer = new maptalks.TileLayer('tile2', {
+      spatialReference:{
+        projection:'EPSG:3857'
+          // other properties necessary for spatial reference
+      },
+      'urlTemplate' : setillayerUrl
+  });
+
+  setilLayer._getTileExtent = function (x,y,z){
+    const map = this.getMap(),
+                res = map._getResolution(z),
+                tileConfig = this._getTileConfig(),
+                tileExtent = tileConfig.getTilePrjExtent(x, y, res);
+            return tileExtent;
+  }
+
+  setilLayer._getTileLngLatExtent = function (x, y, z) {
+    const tileExtent = this._getTileExtent(x, y, z);
+    let max = tileExtent.getMax(),
+        min = tileExtent.getMin();
+    const map = this.getMap();
+    const projection = map.getProjection();
+    min = projection.unproject(min);
+    max = projection.unproject(max);
+    return new maptalks.Extent(min, max);
+  }
+
+
+
+  quake.map = new maptalks.Map("map", {
+      center: [129.15158, 35.15361],
+      zoom: 11,
+      maxZoom: 18,
+      minZoom: 9,
+      centerCross : true,
+      spatialReference:{
+         projection:'EPSG:4326'//map control 좌표계
+      },
+      centerCross: true,
+      doubleClickZoom: false,
+      baseLayer: setilLayer,
+  });
+  
+}
+
+THREE.Loader.Handlers.add( /\.dds$/i, new THREE.DDSLoader() );
+var mtlLoaded = false;
+
+//three layer 생성
+quake.setThreeLayer = function(){
+  quake.threeLayer = new maptalks.ThreeLayer('t', {
+      forceRenderOnMoving: false,
+      forceRenderOnRotating: false
+  });
+
+  quake.threeLayer.prepareToDraw = function (gl, scene, camera) {
+    stats = new Stats();
+    stats.domElement.style.zIndex = 100;
+    document.getElementById('map').appendChild(stats.domElement);
+
+    var light = new THREE.DirectionalLight(0xffffff);
+    light.position.set(0, -10, 10).normalize();
+    scene.add(light);
+    
+    // var mtlLoader = new THREE.MTLLoader();
+    // mtlLoader.setPath( '/tiles/obj/' );
+    // mtlLoader.load( 'mtl_281396_113916.mtl', function( materials ) {
+    //     materials.preload();
+    //     //change to back side with THREE <= v0.94
+    //     // for (const p in materials.materials) {
+    //     //     //change material's side to BackSide
+    //     //     materials.materials[p].side = THREE.BackSide;
+    //     // }
+    //     var objLoader = new THREE.OBJLoader();
+    //     objLoader.setMaterials( materials );
+    //     objLoader.setPath( '/tiles/obj/' );
+    //     objLoader.load( 'obj file_281396_113916.obj', function ( object ) {
+    //         object.traverse( function ( child ) {
+    //             if ( child instanceof THREE.Mesh ) {
+    //               child.scale.set(0.0066, 0.0066, 0.0066);
+    //               //child.rotation.set(Math.PI * 1 / 2, -Math.PI * 1 / 2, 0);
+    //             }
+    //         });
+    //         var v = quake.threeLayer.coordinateToVector3({x:129.15087890625,y:35.1529541015625});
+    //         object.position.x = v.x;
+    //         object.position.y = v.y;
+    //         object.position.z = 0.3019727304665139;
+    //         //scene.add(object);
+
+           
+    //         mtlLoaded = true;
+    //         quake.threeLayer.renderScene();
+    //         quake.threeLayer.config('animation',true);
+    //     });
+    // });
+    mtlLoaded = true
+    animation();
+  }
+
+  quake.threeLayer.addTo(quake.map);
+  
+  //quake.map.on('moving moveend zoomend pitch rotate', update);
+  
+  //update();
+
+  quake.threeLayer.draw = function () {
+    if (mtlLoaded) {
+        this.renderScene();
+    }
+  }
+  
+  quake.threeLayer.drawOnInteracting = function () {
+    if (mtlLoaded) {
+        this.renderScene();
+    }
+  }
+}
+
 const textureLoader = new THREE.TextureLoader();
 
 var uvs = [];
@@ -71,7 +203,7 @@ function terminateWorkerThread(){
 function createWorkerThread(){
   var tinWorker;
   for(var i=0; i<workerCount; i++){
-    tinWorkers.push({id:i, itnWorker:new Worker('/js/maptalks/worker.tin.js')});
+    tinWorkers.push({id:i, itnWorker:new Worker('/js/dds/worker.tin.js')});
   }
 }
 
@@ -92,10 +224,6 @@ function getTinWorker() {
   }
 
   return tt;
-    // if (!tinWorker) {
-    //     tinWorker = new Worker('./js/worker.tin.js');
-    // }
-    // return tinWorker;
 }
 
 function getGeometry(data = [], layer, callback) {
@@ -175,189 +303,6 @@ function message(worker, params, callback) {
       worker.onmessage = (e) => {
           callback(e);
       };
-}
-
-//default values
-const OPTIONS = {
-  altitude: 0
-};
-
-class Terrain extends maptalks.BaseObject {
-  constructor(param, data, options, material, layer) {
-      options = maptalks.Util.extend({ data, layer }, OPTIONS, options);
-      super();
-      this._initOptions(options);
-
-      const { buffGeom, minHeight } = getGeometry(data, layer, (buffGeom) => {
-          this.getObject3d().geometry = buffGeom;
-          this.getObject3d().geometry.needsUpdate = true;
-          var address = "http://xdworld.vworld.kr:8080/XDServer/requestLayerNode?APIKey=3529523D-2DBA-36B8-98F5-357E880AC0EE&Layer=" + "tile" + "&Level=" + param.level + "&IDX=" + param.IDX + "&IDY=" + param.IDY;
-
-          textureLoader.load(address, function(tx){
-            const key = param.layer + "-" + param.level + "-" + param.IDX + "-" + param.IDY;
-            cacheTerrian[key].isJpeg = true;
-            material.map = tx;
-            material.needsUpdate = true;
-          });
-        
-      });
-
-      this._createMesh(buffGeom, material);
-      const z = layer.distanceToVector3(options.altitude, options.altitude).x;
-      this.getObject3d().position.z = z;
-  }
-}
-
-quake.viewMap = function(){
-  terminateWorkerThread();
-  createWorkerThread();
-  quake.setBaseLayer();
-  quake.setThreeLayer();
-  //quake.set3DTile();
-
-  quake.geojsonTest();
-}
-let Id = 0;
-let worker;
-function getTinWorker2() {
-    if (!worker) {
-      worker = new Worker('/js/maptalks/testWorker.js');
-    }
-    return worker;
-}
-
-function messageCallback2(e) {
-  console.timeEnd(e.data.timeId.timeId);
-}
-
-quake.geojsonTest = function(){
-  Id++;
-  
-  let timeId= 'map' + Id;
-  console.time(timeId);
-  pushQueue(getTinWorker2(), { timeId }, messageCallback2);
-}
-
-quake.setBaseLayer = function() {
-  //basemap : vworld
- // var url = 'http://api.vworld.kr/req/wmts/1.0.0/' + properties.baseMapAPIKey + '/Base/{z}/{y}/{x}.png'
-
-  var setillayerUrl = 'http://api.vworld.kr/req/wmts/1.0.0/' + 'D6200AF4-16B4-3161-BE8E-1CCDD332A8E3' + '/Satellite/{z}/{y}/{x}.jpeg';
-  var setilLayer = new maptalks.TileLayer('tile2', {
-      spatialReference:{
-        projection:'EPSG:3857'
-          // other properties necessary for spatial reference
-      },
-      'urlTemplate' : setillayerUrl
-  });
-
-  setilLayer._getTileExtent = function (x,y,z){
-    const map = this.getMap(),
-                res = map._getResolution(z),
-                tileConfig = this._getTileConfig(),
-                tileExtent = tileConfig.getTilePrjExtent(x, y, res);
-            return tileExtent;
-  }
-
-  setilLayer._getTileLngLatExtent = function (x, y, z) {
-    const tileExtent = this._getTileExtent(x, y, z);
-    let max = tileExtent.getMax(),
-        min = tileExtent.getMin();
-    const map = this.getMap();
-    const projection = map.getProjection();
-    min = projection.unproject(min);
-    max = projection.unproject(max);
-    return new maptalks.Extent(min, max);
-  }
-
-
-
-  quake.map = new maptalks.Map("map", {
-      center: [129.15158, 35.15361],
-      zoom: 11,
-      maxZoom: 18,
-      minZoom: 9,
-      centerCross : true,
-      spatialReference:{
-         projection:'EPSG:4326'//map control 좌표계
-      },
-      centerCross: true,
-      doubleClickZoom: false,
-      baseLayer: setilLayer,
-  });
-  
-}
-
-THREE.Loader.Handlers.add( /\.dds$/i, new THREE.DDSLoader() );
-var mtlLoaded = false;
-
-//three layer 생성
-quake.setThreeLayer = function(){
-  quake.threeLayer = new maptalks.ThreeLayer('t', {
-      forceRenderOnMoving: true,
-      forceRenderOnRotating: true
-  });
-
-  quake.threeLayer.prepareToDraw = function (gl, scene, camera) {
-    stats = new Stats();
-    stats.domElement.style.zIndex = 100;
-    document.getElementById('map').appendChild(stats.domElement);
-
-    var light = new THREE.DirectionalLight(0xffffff);
-    light.position.set(0, -10, 10).normalize();
-    scene.add(light);
-    
-    // var mtlLoader = new THREE.MTLLoader();
-    // mtlLoader.setPath( '/tiles/obj/' );
-    // mtlLoader.load( 'mtl_281396_113916.mtl', function( materials ) {
-    //     materials.preload();
-    //     //change to back side with THREE <= v0.94
-    //     // for (const p in materials.materials) {
-    //     //     //change material's side to BackSide
-    //     //     materials.materials[p].side = THREE.BackSide;
-    //     // }
-    //     var objLoader = new THREE.OBJLoader();
-    //     objLoader.setMaterials( materials );
-    //     objLoader.setPath( '/tiles/obj/' );
-    //     objLoader.load( 'obj file_281396_113916.obj', function ( object ) {
-    //         object.traverse( function ( child ) {
-    //             if ( child instanceof THREE.Mesh ) {
-    //               child.scale.set(0.0066, 0.0066, 0.0066);
-    //               //child.rotation.set(Math.PI * 1 / 2, -Math.PI * 1 / 2, 0);
-    //             }
-    //         });
-    //         var v = quake.threeLayer.coordinateToVector3({x:129.15087890625,y:35.1529541015625});
-    //         object.position.x = v.x;
-    //         object.position.y = v.y;
-    //         object.position.z = 0.3019727304665139;
-    //         //scene.add(object);
-
-           
-    //         mtlLoaded = true;
-    //         quake.threeLayer.renderScene();
-    //         quake.threeLayer.config('animation',true);
-    //     });
-    // });
-    mtlLoaded = true
-    animation();
-  }
-  quake.threeLayer.addTo(quake.map);
-  
-  quake.map.on('moving moveend zoomend pitch rotate', update);
-  
-  update();
-
-  quake.threeLayer.draw = function () {
-    if (mtlLoaded) {
-        this.renderScene();
-    }
-  }
-  
-  quake.threeLayer.drawOnInteracting = function () {
-    if (mtlLoaded) {
-        this.renderScene();
-    }
-  }
 }
 
 var terrains = [];
@@ -618,10 +563,87 @@ function getTiles(z, parentLayer){
 function isNil(obj) {
   return obj == null;
 }
+let showKeyList = {};
+function loadLevel(level){
+  var coordMin = quake.map.getProjection().unproject({x:128.783010, y:34.980677});
+  var coordMax = quake.map.getProjection().unproject({x:129.314373, y:35.396265});
+
+  
+  if(level > 15){
+    level = 15;
+  }
+  let unit = 360 / (Math.pow(2, level) * 10);
+  let minIdx = Math.floor((coordMin.x+180)/unit);
+  let minIdy = Math.floor((coordMin.y+90)/unit);
+  let maxIdx = Math.floor((coordMax.x+180)/unit);
+  let maxIdy = Math.floor((coordMax.y+90)/unit);
+  //console.log(minIdx, minIdy, maxIdx, maxIdy);
+  //console.log(tileGrid.zoom, coordMin, coordMax);
+
+  var idxIdyList = Array.from(Array((maxIdx-minIdx+1)*(maxIdy-minIdy+1)), () => new Array(2));
+  var index = 0;
+  for (var i=minIdx ; i<=maxIdx ; i++) {
+    for (var j=minIdy ; j<=maxIdy; j++) {
+      idxIdyList[index][0] = i+"";
+      idxIdyList[index][1] = j+"";
+      index++;
+    }
+  }		
+
+  for (var i=0 ; i<idxIdyList.length ; i++) {
+    const IDX = idxIdyList[i][0];
+    const IDY = idxIdyList[i][1];
+    const layer = "dem";
+    let address = "http://xdworld.vworld.kr:8080/XDServer/requestLayerNode?APIKey=3529523D-2DBA-36B8-98F5-357E880AC0EE&Layer=" + layer + "&Level=" + level + "&IDX=" + IDX + "&IDY=" + IDY;
+  
+    const key = layer + "-" + level + "-" + IDX + "-" + IDY;
+    //showKeyList[key] = key;
+    const cache = cacheTerrian[key];
+    if(cache && cache.demUrl == address){
+      continue;
+    }
+    
+    cacheTerrian[key] = {id:key, level:level, isData:false, isFetch:true, isJpeg:false, demUrl:address, terrian:null};
+    fetch(address).then(r=>{
+      const size = r.headers.get("content-length");
+      if(Number(size) >= 16900){
+        r.arrayBuffer().then(function(buffer) {
+          //var byteArray = new Uint8Array(buffer);
+          p = new Parser(buffer);
+
+          let x = unit * (IDX - (Math.pow(2, level-1)*10));
+          let y = unit * (IDY - (Math.pow(2, level-2)*10));
+          let pdata = [];
+          for(var yy=64; yy>=0; yy--){
+            for(var xx=0; xx<65; xx++){
+              let xDegree = x+(unit/64)*xx;
+              let yDegree = y+(unit/64)*yy;
+              let height = p.getFloat4();
+
+              pdata.push([xDegree, yDegree, height]);
+              //console.log(xDegree, yDegree, height);
+            }
+          }
+          //console.log(r);
+          var material = new THREE.MeshBasicMaterial({/*color: 'hsl(0,100%,50%)',*/ side:THREE.BackSide});
+          material.opacity = 0.9;
+          //material.wireframe = true;
+          const terrain = new Terrain({layer,level,IDX,IDY}, pdata, {interactive: false}, material, quake.threeLayer);
+          //terrains.push({terrain, key});
+          quake.threeLayer.addMesh(terrain);
+
+          cacheTerrian[key].terrian = terrain;
+          cacheTerrian[key].isData = true;
+
+        });
+      }
+    });
+    
+  }
+}
+
 function update() {
   // console.log(quake.map.getZoom());
-  quake.geojsonTest();
-  return;
 
   // var tileGrids = getTiles().tileGrids;//modify
   var tileGrids = quake.map._baseLayer.getTiles().tileGrids;
@@ -807,20 +829,33 @@ function animation() {
 
 }
 
-function ctiles(){
-  var map = quake.map._baseLayer.getMap();
-  var pitch = quake.map._baseLayer.getPitch();
-  var mapExtent = quake.map._baseLayer.getContainerExtent();
-  var tileGrids = [];
-  var count = 0;
-  var minZoom = quake.map._baseLayer.getMinZoom();
-  var cascadePitch0 = quake.map._baseLayer.options['cascadePitches'][0];
-  var cascadePitch1 = quake.map._baseLayer.options['cascadePitches'][1];
-  var visualHeight1 = Math.floor(quake.map._baseLayer._getVisualHeight(cascadePitch1));
-  var tileZoom = quake.map._baseLayer._getTileZoom(quake.map._baseLayer.getZoom());
+//default values
+const OPTIONS = {
+  altitude: 0
+};
 
+class Terrain extends maptalks.BaseObject {
+  constructor(param, data, options, material, layer) {
+      options = maptalks.Util.extend({ data, layer }, OPTIONS, options);
+      super();
+      this._initOptions(options);
 
-  if (pitch <= cascadePitch0 || tileZoom <= minZoom) {
-    //1:1
+      const { buffGeom, minHeight } = getGeometry(data, layer, (buffGeom) => {
+          this.getObject3d().geometry = buffGeom;
+          this.getObject3d().geometry.needsUpdate = true;
+          var address = "http://xdworld.vworld.kr:8080/XDServer/requestLayerNode?APIKey=3529523D-2DBA-36B8-98F5-357E880AC0EE&Layer=" + "tile" + "&Level=" + param.level + "&IDX=" + param.IDX + "&IDY=" + param.IDY;
+
+          textureLoader.load(address, function(tx){
+            const key = param.layer + "-" + param.level + "-" + param.IDX + "-" + param.IDY;
+            cacheTerrian[key].isJpeg = true;
+            material.map = tx;
+            material.needsUpdate = true;
+          });
+        
+      });
+
+      this._createMesh(buffGeom, material);
+      const z = layer.distanceToVector3(options.altitude, options.altitude).x;
+      this.getObject3d().position.z = z;
   }
 }
