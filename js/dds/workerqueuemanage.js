@@ -27,7 +27,6 @@ function message_() {
         worker.onmessage = (e) => {
             callback(e);
             queue.splice(0, 1);
-            //  循环消费
             message_();
         };
     } else {
