@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <title>shapefile</title>
+    <!-- Pointer events polyfill for old browsers, see https://caniuse.com/#feat=pointer -->
+    <script src="/js/shape/shp.js"></script>
+    <script>
+        shp('/js/shape/해안침수범람_위험지역.zip').then(function(geojson){
+		//see bellow for whats here this internally call shp.parseZip()
+            console.log(geojson);
+	    });
+    </script>
+  </head>
+  <body> 
+  </body>
+</html>
