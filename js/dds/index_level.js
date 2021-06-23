@@ -53,10 +53,6 @@ quake.setBaseLayer = function() {
       zoom: 11,
       maxZoom: 18,
       minZoom: 9,
-      centerCross : true,
-      spatialReference:{
-         projection:'EPSG:4326'//map control 좌표계
-      },
       centerCross: true,
       doubleClickZoom: false,
       baseLayer: setilLayer,
@@ -564,11 +560,14 @@ function isNil(obj) {
   return obj == null;
 }
 let showKeyList = {};
+const bst = new BST();
 function loadLevel(level){
-  var coordMin = quake.map.getProjection().unproject({x:128.783010, y:34.980677});
-  var coordMax = quake.map.getProjection().unproject({x:129.314373, y:35.396265});
+  // var coordMin = new maptalks.Coordinate(128.783010, 34.980677);
+  // var coordMax = new maptalks.Coordinate(129.314373, 35.396265);
+  var coordMin = new maptalks.Coordinate(129.148876, 35.151681);
+  var coordMax = new maptalks.Coordinate(129.155753, 35.156076);
+  var proj = proj4(proj4.defs('EPSG:4326'), proj4.defs('EPSG:3857'));
 
-  
   if(level > 15){
     level = 15;
   }
@@ -589,6 +588,9 @@ function loadLevel(level){
       index++;
     }
   }		
+
+  let allLength = idxIdyList.length * 65 * 65;
+  let currentCnt = 0;
 
   for (var i=0 ; i<idxIdyList.length ; i++) {
     const IDX = idxIdyList[i][0];
@@ -615,13 +617,27 @@ function loadLevel(level){
           let y = unit * (IDY - (Math.pow(2, level-2)*10));
           let pdata = [];
           for(var yy=64; yy>=0; yy--){
+            const latBst = new BST();
             for(var xx=0; xx<65; xx++){
               let xDegree = x+(unit/64)*xx;
               let yDegree = y+(unit/64)*yy;
               let height = p.getFloat4();
+              
+              var result = proj.forward([xDegree, yDegree]);
+              
+              latBst.insert({key:result[1], value:height});
+              bst.insert({key:result[0], value:latBst});
 
               pdata.push([xDegree, yDegree, height]);
               //console.log(xDegree, yDegree, height);
+              
+              currentCnt++;
+              if(currentCnt % 100000 == 0){
+                console.log(allLength, currentCnt);
+              }
+              if(currentCnt > 2600000){
+                console.log(allLength, currentCnt);
+              }
             }
           }
           //console.log(r);
@@ -858,4 +874,19 @@ class Terrain extends maptalks.BaseObject {
       const z = layer.distanceToVector3(options.altitude, options.altitude).x;
       this.getObject3d().position.z = z;
   }
+}
+
+quake.getHeight = function(lon, lat){
+  var projection = quake.map.getProjection();
+  var coordinate = new maptalks.Coordinate(lon,lat);
+  var prj = projection.project(coordinate); 
+
+  document.getElementById('result_log').innerHTML = '<div>' + [
+          'Projected Coordinate : [' + prj.x.toFixed(5) + ', ' + prj.y.toFixed(5) + ']',
+          'ContainerPoint is the screen position in px from northwest of the map container.'
+        ].join('<br>') + '</div>';
+
+  var key = String(prj.x.toFixed(9)) + ":" + String(prj.y.toFixed(9));
+  var value = bst.find(key);
+  return value;
 }
