@@ -1,8 +1,9 @@
 class Node{
-  constructor(data, left, right){
+  constructor(data, left, right, parent){
     this.data = data;
     this.left = left;
     this.right = right;
+    this.parent = parent;
   }
   show(){
       return this.data;
@@ -10,7 +11,7 @@ class Node{
 }
  
 //Binary Search Tree
-class BST{
+class BST_V{
      constructor(){
       this.root = null;
     }
@@ -21,7 +22,7 @@ class BST{
   
     insert(data){
     //새로운 Node 생성
-    let n = new Node(data, null, null);
+    let n = new Node(data, null, null, null);
     //트리에 루트 노드가 없으면 생성한 노드가 루트 노드
     if(this.root == null){
       this.root = n;
@@ -32,6 +33,7 @@ class BST{
       let parent;
       while(true){
         parent = current;
+        n.parent = parent;
         if(data.key < current.data.key){
           current = current.left;
           if(current == null){

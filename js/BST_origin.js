@@ -1,14 +1,3 @@
-class Node{
-  constructor(data, left, right){
-    this.data = data;
-    this.left = left;
-    this.right = right;
-  }
-  show(){
-      return this.data;
-  }
-}
- 
 //Binary Search Tree
 class BST{
      constructor(){
@@ -32,6 +21,7 @@ class BST{
       let parent;
       while(true){
         parent = current;
+        n.parent = parent;
         if(data < current.data){
           current = current.left;
           if(current == null){
@@ -59,23 +49,49 @@ class BST{
   }
   
   find(data){
+    if(!data || !this.root){
+      return null;
+    }
     let current = this.root;
-    let parentNode = this.root;
     while(current.data != data){
       if(data < current.data){
-        parentNode = current;
         current = current.left;
       }
       else{
-        parentNode = current;
         current = current.right;
       }
       if(current == null){
-        return parentNode;
+        return null;
       }
     }
     return current;
   }
+
+  findExt(data){
+    if(!data || !this.root){
+      return null;
+    }
+    let current = this.root;
+    let parent = this.root;
+    let parentValue = this.root.data;
+    while(current.data != data){
+      parentValue = current.data;
+      if(data < current.data){
+        parent = current;
+        current = current.left;
+      }
+      else{
+        parent = current;
+        current = current.right;
+      }
+
+      if(current == null){
+        return parent;
+      }
+    }
+    return current;
+  }
+
   remove(data){
     this.root = this.removeNode(this.root, data);
   }
@@ -119,3 +135,4 @@ class BST{
     return current;
   }
 }
+
