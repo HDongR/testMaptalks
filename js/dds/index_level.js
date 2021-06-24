@@ -17,9 +17,10 @@ quake.viewMap = function(){
   animation();
 }
 var zResol = 80;
+var startZoom = 10;
 var ray = new THREE.Raycaster();
 var rayPos = new THREE.Vector3();
-
+var rayDir = new THREE.Vector3(0, 0, -1); // Ray points down
 
 function animation() {
   // layer animation support Skipping frames
@@ -33,38 +34,55 @@ function animation() {
 	var moveDistance = 2 * delta; // 200 pixels per second
 	var rotateAngle = Math.PI / 2 * delta;   // pi/2 radians (90 degrees) per second
 	if(!MovingCube || geometryList.length <= 0) return;
-	// if ( keyboard.pressed("A") )
-  //   rayPos.rotation.y -= rotateAngle;
-	// if ( keyboard.pressed("D") )
-  //   rayPos.rotation.y += rotateAngle;
-			
-	if ( keyboard.pressed("left") )
-    rayPos.x -= moveDistance;
-	if ( keyboard.pressed("right") )
-    rayPos.x += moveDistance;
-	if ( keyboard.pressed("up") )
-    rayPos.z += moveDistance;
-	if ( keyboard.pressed("down") )
-    rayPos.z -= moveDistance;
 
-  
+	if ( keyboard.pressed("up") ){
+    rayPos.y += moveDistance;
+    MovingCube.position.y += moveDistance;
+  }
+	if ( keyboard.pressed("down") ){
+    rayPos.y -= moveDistance;
+    MovingCube.position.y -= moveDistance;
+  }
+			
+	if ( keyboard.pressed("left") ){
+    rayPos.x -= moveDistance;
+    MovingCube.position.x -= moveDistance;
+  }
+	if ( keyboard.pressed("right") ){
+    rayPos.x += moveDistance;
+    MovingCube.position.x += moveDistance;
+  }
+	if ( keyboard.pressed("W") ){
+    rayPos.z += moveDistance;
+    MovingCube.position.z += moveDistance;
+  }
+	if ( keyboard.pressed("S") ){
+    rayPos.z -= moveDistance;
+    MovingCube.position.z -= moveDistance;
+  }
+
+  let unPos = new maptalks.Point(rayPos.x * quake.map._getResolution(startZoom), rayPos.y * quake.map._getResolution(startZoom));
+ 
+  const projection = quake.map.getProjection();
+  let un = projection.unproject(unPos);
+  quake.map.setCenterAndZoom(new maptalks.Coordinate(un.x, un.y));
 
   
 
   // Use y = 100 to ensure ray starts above terran 
-  var rayDir = new THREE.Vector3(0, -1, 0); // Ray points down
-
-  // Set ray from pos, pointing down
+  
   ray.set(rayPos, rayDir);
 
   // Check where it intersects terrain Mesh
   let intersect = ray.intersectObjects(geometryList);
   if ( intersect.length > 0) {
-    intersect[0].object.material.color.set( 0xff0000 );
-    console.log(intersect);
+    //intersect[0].object.material.color.set( 0xff0000 );
+    //console.log(intersect);
+    //console.log(ray.ray.origin, intersect[0].point.z * zResol);
+    $('#resultHeight').text((ray.ray.origin, intersect[0].point.z * zResol) + 'm');
   }else{
   }
-  console.log(ray.ray.origin);
+  //console.log(ray.ray.origin);
 
   // var originPoint = MovingCube.position.clone();
   // for (var vertexIndex = 0; vertexIndex < MovingCube.geometry.vertices.length; vertexIndex++)
@@ -92,16 +110,16 @@ function testing(){
   //console.log(tileGrids);
 }
 function testTerrain(){
-  const z_2 = quake.threeLayer.distanceToVector3(40, 40).x;
+  const z_2 = quake.threeLayer.distanceToVector3(1000, 1000).x;
   const v_2 = quake.threeLayer.coordinateToVector3([129.152369,35.153617], z_2);
   rayPos.set(v_2.x, v_2.y, v_2.z);
 
-  // var coordMin = new maptalks.Coordinate(128.783010, 34.980677);
-  // var coordMax = new maptalks.Coordinate(129.314373, 35.396265);
-  var coordMin = new maptalks.Coordinate(129.148876, 35.151681);
-  var coordMax = new maptalks.Coordinate(129.155753, 35.156076);
+   var coordMin = new maptalks.Coordinate(128.783010, 34.980677);
+   var coordMax = new maptalks.Coordinate(129.314373, 35.396265);
+  //var coordMin = new maptalks.Coordinate(129.148876, 35.151681);
+  //var coordMax = new maptalks.Coordinate(129.155753, 35.156076);
   var proj = proj4(proj4.defs('EPSG:4326'), proj4.defs('EPSG:3857'));
-  level = 11;
+  level = 10;
   let unit = 360 / (Math.pow(2, level) * 10);
   let minIdx = Math.floor((coordMin.x+180)/unit);
   let minIdy = Math.floor((coordMin.y+90)/unit);
@@ -181,11 +199,11 @@ function testTerrain(){
             material.needsUpdate = true;
           });
 
-          var cubeGeometry = new THREE.CubeGeometry(1,1,1,1,1,1);
+          var cubeGeometry = new THREE.CubeGeometry(0.1,0.1,0.1,1,1,1);
           var wireMaterial = new THREE.MeshBasicMaterial( { color: 0xff0000, wireframe:true } );
           MovingCube = new THREE.Mesh( cubeGeometry, wireMaterial );
            
-          const z_2 = quake.threeLayer.distanceToVector3(40, 40).x;
+          const z_2 = quake.threeLayer.distanceToVector3(50, 50).x;
           const v_2 = quake.threeLayer.coordinateToVector3([129.152369,35.153617], z_2);
           MovingCube.position.set(v_2.x, v_2.y, v_2.z);
           
@@ -268,7 +286,7 @@ quake.setBaseLayer = function() {
 
   quake.map = new maptalks.Map("map", {
       center: [129.15158, 35.15361],
-      zoom: 11,
+      zoom: startZoom,
       maxZoom: 18,
       minZoom: 9,
       centerCross: true,

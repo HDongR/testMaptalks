@@ -37,12 +37,10 @@
         <script src='https://unpkg.com/@turf/turf@6.3.0/turf.min.js'></script>
     </head>
     <body>
-        <div><br/><br/><br/><br/>
-            <span>lon</span><input type="text" id="lon" width="120" height="50">
-            <span>lat</span><input type="text" id="lat" width="120" height="50"><button id="submit">submit</button><div id="result_log"></div><button id="loadBuilding">loadBuilding</button> <br>
+        <div id="map" class="container">
+            
         </div>
-        <div id="map" class="container"></div>
-        <div id="coordinate"></div>
+        <div id="coordinate"><span style="margin-left: 100px;" id="resultHeight"></span><button style="margin-left: 10px;" id="loadBuilding">loadBuilding</button></div>
         <!-- <canvas id="c" width="1024" height="700"></div> -->
     </body>
 
@@ -51,17 +49,6 @@
     <!-- <script type="module" src="js/test.js"></script> -->
 
     <script>
-        
-        $('#submit').click(function(){
-            var lon = $('#lon').val();
-            var lat = $('#lat').val();
-
-            if(lat && lon){
-                var rst = quake.getHeight(lon, lat);
-                $('#result_log').text(rst);
-            }
-        });  
-
         $('#loadBuilding').click(function(){ 
             quake.setStaticalBuilding();
         });  
