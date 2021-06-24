@@ -1208,8 +1208,9 @@ quake.setStaticalBuilding = async function(){
               properties.height = height;
               const polygon = maptalks.GeoJSON.toGeometry(feature);
               polygon.setProperties(properties);
+              
  
-              /** */
+              /** 
               var polygon__ = turf.polygon(geometry.coordinates[0]);
 
               var centroid = turf.centroid(polygon__);
