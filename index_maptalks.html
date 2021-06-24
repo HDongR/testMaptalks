@@ -13,6 +13,13 @@
         <!-- <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/maptalks/dist/maptalks.css"> -->
         <link rel="stylesheet" href="/css/maptalks/maptalks.css">
         <script src="/js/util/jquery-2.2.4.js"></script>
+        <script src="/js/jquery-ui.min.js"></script>
+        <script src="/js/BST_origin.js"></script>
+        <script src="/js/BST.js"></script>
+        <script src="/js/proj4.js"></script>
+        <script src="/js/proj4-src.js"></script>
+        <script src="/js/turf.tin.js"></script>
+        <script src="/js/THREEx.KeyboardState.js"></script>
         
         <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/dat.gui@0.7.6/build/dat.gui.min.js"></script>
         <script type="text/javascript" src="/js/maptalks/maptalks.js"></script>
@@ -30,6 +37,10 @@
         <script src='https://unpkg.com/@turf/turf@6.3.0/turf.min.js'></script>
     </head>
     <body>
+        <div><br/><br/><br/><br/>
+            <span>lon</span><input type="text" id="lon" width="120" height="50">
+            <span>lat</span><input type="text" id="lat" width="120" height="50"><button id="submit">submit</button><div id="result_log"></div><button id="loadBuilding">loadBuilding</button> <br>
+        </div>
         <div id="map" class="container"></div>
         <div id="coordinate"></div>
         <!-- <canvas id="c" width="1024" height="700"></div> -->
@@ -38,4 +49,23 @@
     <script type="text/javascript" src="/js/dds/index_level.js"></script>
     <script>quake.viewMap();</script>
     <!-- <script type="module" src="js/test.js"></script> -->
+
+    <script>
+        
+        $('#submit').click(function(){
+            var lon = $('#lon').val();
+            var lat = $('#lat').val();
+
+            if(lat && lon){
+                var rst = quake.getHeight(lon, lat);
+                $('#result_log').text(rst);
+            }
+        });  
+
+        $('#loadBuilding').click(function(){ 
+            quake.setStaticalBuilding();
+        });  
+       
+
+    </script>
 </html>
