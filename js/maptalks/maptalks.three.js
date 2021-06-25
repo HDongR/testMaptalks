@@ -4157,6 +4157,9 @@
                     var polygon = polygons[i];
                     var height = (isGeoJSONPolygon(polygon) ? polygon['properties'] : polygon.getProperties() || {}).height || 1;
                     var buffGeom = getExtrudeGeometryParams(polygon, height, layer, center, altCache);
+                    for(var cc = 2; cc<buffGeom.position.length; cc+=3){
+                        buffGeom.position[cc] = buffGeom.position[cc] + polygon.custom_altitude;
+                    }
                     geometries.push(buffGeom);
                     // const extrudePolygon = new ExtrudePolygon(polygon, Object.assign({}, options, { height, index: i }), material, layer);
                     // extrudePolygons.push(extrudePolygon);

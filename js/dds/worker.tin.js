@@ -1,4 +1,4 @@
-importScripts('/js/maptalks/turf.tin.js');
+importScripts('/js/turf.tin.js');
 
 
 onmessage = function (e) {
@@ -30,16 +30,16 @@ onmessage = function (e) {
             }
         }
     }
-    var fs = [];
-    for (var i = 0, len2 = faces.length; i < len2; i += 3) {
-        var index1 = faces[i],
-            index2 = faces[i + 1],
-            index3 = faces[i + 2];
-        if ((!(zs[index1] > minZ) && (!(zs[index2] > minZ)) && (!(zs[index3] > minZ)))) {
-            continue;
-        }
-        fs.push(index1, index2, index3);
-    }
+    // var fs = [];
+    // for (var i = 0, len2 = faces.length; i < len2; i += 3) {
+    //     var index1 = faces[i],
+    //         index2 = faces[i + 1],
+    //         index3 = faces[i + 2];
+    //     if ((!(zs[index1] > minZ) && (!(zs[index2] > minZ)) && (!(zs[index3] > minZ)))) {
+    //         continue;
+    //     }
+    //     fs.push(index1, index2, index3);
+    // }
     results.faces = faces;
     delete results.result;
     this.postMessage(results);

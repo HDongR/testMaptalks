@@ -11,7 +11,7 @@ quake.viewMap = function(){
   quake.setBaseLayer();
   quake.setThreeLayer();
   //quake.set3DTile();
- // loadLevel(11);
+  //loadLevel(10);
   testTerrain();
 
   animation();
@@ -21,15 +21,12 @@ var startZoom = 10;
 var ray = new THREE.Raycaster();
 var rayPos = new THREE.Vector3();
 var rayDir = new THREE.Vector3(0, 0, -1); // Ray points down
+var keyboard = new THREEx.KeyboardState();
+var clock = new THREE.Clock();
+var MovingCube = null;
+var geometryList = [];
 
-function animation() {
-  // layer animation support Skipping frames
-  quake.threeLayer._needsUpdate = !quake.threeLayer._needsUpdate;
-  if (quake.threeLayer._needsUpdate) {
-    quake.threeLayer.renderScene();
-  }
-  requestAnimationFrame(animation);
-
+function handleAction(){
   var delta = clock.getDelta(); // seconds.
 	var moveDistance = 2 * delta; // 200 pixels per second
 	var rotateAngle = Math.PI / 2 * delta;   // pi/2 radians (90 degrees) per second
@@ -66,11 +63,7 @@ function animation() {
   const projection = quake.map.getProjection();
   let un = projection.unproject(unPos);
   quake.map.setCenterAndZoom(new maptalks.Coordinate(un.x, un.y));
-
-  
-
-  // Use y = 100 to ensure ray starts above terran 
-  
+ 
   ray.set(rayPos, rayDir);
 
   // Check where it intersects terrain Mesh
@@ -82,26 +75,18 @@ function animation() {
     $('#resultHeight').text((ray.ray.origin, intersect[0].point.z * zResol) + 'm');
   }else{
   }
-  //console.log(ray.ray.origin);
-
-  // var originPoint = MovingCube.position.clone();
-  // for (var vertexIndex = 0; vertexIndex < MovingCube.geometry.vertices.length; vertexIndex++)
-  // {		
-  //   var localVertex = MovingCube.geometry.vertices[vertexIndex].clone();
-  //   var globalVertex = localVertex.applyMatrix4( MovingCube.matrix );
-  //   var directionVector = globalVertex.sub( MovingCube.position );
-    
-  //   var ray = new THREE.Raycaster( originPoint, directionVector.clone().normalize() );
-  //   var collisionResults = ray.intersectObjects( geometryList );
-  //   if ( collisionResults.length > 0 && collisionResults[0].distance < directionVector.length() ) 
-  //     console.log('h:', collisionResults[0].point.z * zResol);
-  // }	
 }
 
-var keyboard = new THREEx.KeyboardState();
-var clock = new THREE.Clock();
-var MovingCube = null;
-var geometryList = [];
+function animation() {
+  // layer animation support Skipping frames
+  quake.threeLayer._needsUpdate = !quake.threeLayer._needsUpdate;
+  if (quake.threeLayer._needsUpdate) {
+    quake.threeLayer.renderScene();
+  }
+  handleAction();
+  requestAnimationFrame(animation);
+}
+
 function testing(){
   //let tileLayer = quake.map.getLayer('tile2');
   //let tileConfig = tileLayer._getTileConfig();
@@ -109,6 +94,7 @@ function testing(){
   //let tileGrids = tileLayer.getTiles().tileGrids;
   //console.log(tileGrids);
 }
+
 function testTerrain(){
   const z_2 = quake.threeLayer.distanceToVector3(1000, 1000).x;
   const v_2 = quake.threeLayer.coordinateToVector3([129.152369,35.153617], z_2);
@@ -187,7 +173,7 @@ function testTerrain(){
           }
         
           var material = new THREE.MeshBasicMaterial({/*color: 'hsl(0,100%,50%)',*/});
-          material.opacity = 0.9;
+          material.opacity = 1;
           material.wireframe = false;
           var address = "http://xdworld.vworld.kr:8080/XDServer/requestLayerNode?APIKey=3529523D-2DBA-36B8-98F5-357E880AC0EE&Layer=" + "tile" + "&Level=" + level + "&IDX=" + IDX + "&IDY=" + IDY;
           // var material = new THREE.MeshPhongMaterial({
@@ -199,15 +185,7 @@ function testTerrain(){
             material.needsUpdate = true;
           });
 
-          var cubeGeometry = new THREE.CubeGeometry(0.1,0.1,0.1,1,1,1);
-          var wireMaterial = new THREE.MeshBasicMaterial( { color: 0xff0000, wireframe:true } );
-          MovingCube = new THREE.Mesh( cubeGeometry, wireMaterial );
-           
-          const z_2 = quake.threeLayer.distanceToVector3(50, 50).x;
-          const v_2 = quake.threeLayer.coordinateToVector3([129.152369,35.153617], z_2);
-          MovingCube.position.set(v_2.x, v_2.y, v_2.z);
           
-          quake.threeLayer.addMesh(MovingCube);  
           // var originPoint = MovingCube.position.clone();
           // for (var vertexIndex = 0; vertexIndex < MovingCube.geometry.vertices.length; vertexIndex++)
           // {		
@@ -244,8 +222,17 @@ function testTerrain(){
     });
   }
 
-
-
+  setTimeout(function(){
+    var cubeGeometry = new THREE.CubeGeometry(0.1,0.1,0.1,1,1,1);
+    var wireMaterial = new THREE.MeshBasicMaterial( { color: 0xff0000, wireframe:true } );
+    MovingCube = new THREE.Mesh( cubeGeometry, wireMaterial );
+    
+    const z_2 = quake.threeLayer.distanceToVector3(50, 50).x;
+    const v_2 = quake.threeLayer.coordinateToVector3([129.152369,35.153617], z_2);
+    MovingCube.position.set(v_2.x, v_2.y, v_2.z);
+    
+    quake.threeLayer.addMesh(MovingCube);
+  },1000);
 
 
 }
@@ -296,7 +283,7 @@ quake.setBaseLayer = function() {
   
 }
 
-THREE.Loader.Handlers.add( /\.dds$/i, new THREE.DDSLoader() );
+// THREE.Loader.Handlers.add( /\.dds$/i, new THREE.DDSLoader() );
 var mtlLoaded = false;
 
 //three layer 생성
@@ -1196,44 +1183,55 @@ quake.setStaticalBuilding = async function(){
   
   let polygons = [];
 
-  const positionHelper = new THREE.Object3D();
+  let positionHelper = new THREE.Object3D();
   positionHelper.position.z = 1;
-  commits.features.forEach(feature => {
-      const geometry = feature.geometry;
-      const type = feature.geometry.type;
-      if (['Polygon', 'MultiPolygon'].includes(type)) {
-          const height = feature.height || feature.properties.height || 20;
-          if(height < 400){ //error data 400m높이 건물 이하로
-              const properties = feature.properties;
-              properties.height = height;
-              const polygon = maptalks.GeoJSON.toGeometry(feature);
-              polygon.setProperties(properties);
-              
- 
-              /** 
-              var polygon__ = turf.polygon(geometry.coordinates[0]);
+  for(var i=0; i< commits.features.length; i++){
+    if(polygons.length > 100000) break;
+    let feature = commits.features[i];
+    const geometry = feature.geometry;
+    const type = feature.geometry.type;
+    if (['Polygon', 'MultiPolygon'].includes(type)) {
+        const height = feature.height || feature.properties.height || 20;
+        if(height < 400){ //error data 400m높이 건물 이하로
+            const properties = feature.properties;
+            properties.height = height;
+            const polygon = maptalks.GeoJSON.toGeometry(feature);
+            let center =  polygon.getCenter(); 
+            const vv = quake.threeLayer.coordinateToVector3(center);
+            rayPos.x = vv.x;
+            rayPos.y = vv.y;
+            ray.set(rayPos, rayDir);
+          
+            // Check where it intersects terrain Mesh
+            let intersect = ray.intersectObjects(geometryList);
+            if ( intersect.length > 0) {
+              //intersect[0].object.material.color.set( 0xff0000 );
+              //console.log(intersect);
+              //console.log(ray.ray.origin, intersect[0].point.z * zResol);
+              polygon.custom_altitude = intersect[0].point.z;
+            }
 
-              var centroid = turf.centroid(polygon__);
-              var ct = new maptalks.Coordinate(centroid.geometry.coordinates[0], centroid.geometry.coordinates[1]);
-              var position = quake.threeLayer.coordinateToVector3(ct);
-              positionHelper.position.y = position.y;
-              positionHelper.position.x = position.x; 
-              positionHelper.position.z =  1000;//quake.getHeight(centroid.geometry.coordinates[0], centroid.geometry.coordinates[1]);
-              geometry.applyMatrix4(positionHelper.matrixWorld);
-              /** */
-
-
-              polygons.push(polygon);
-          }
-      }
-
-  });
-  if (polygons.length > 0) {
-      var mesh = quake.threeLayer.toExtrudePolygons(polygons.slice(0, Infinity), { topColor: '#fff', interactive: false }, buildingMaterial);
-      quake.threeLayer.addMesh(mesh);
-      buildingMeshs.push(mesh);
-      polygons.length = 0;
+            polygon.setProperties(properties);
+            polygons.push(polygon);
+        }
+    }
   }
+
+  if(polygons.length > 0){
+    var buildingColor = '#BDBDBD';
+    var buildingMaterial = new THREE.MeshPhongMaterial({ color: buildingColor, transparent: true, opacity: 0.8 });
+    var mesh = quake.threeLayer.toExtrudePolygons(polygons.slice(0, Infinity), { topColor: '#fff', interactive: false }, buildingMaterial);
+    quake.threeLayer.addMesh(mesh);
+    polygons.length = 0;
+  }
+
+
+  // if (polygons.length > 0) {
+  //     var mesh = quake.threeLayer.toExtrudePolygons(polygons.slice(0, Infinity), { topColor: '#fff', interactive: false }, buildingMaterial);
+  //     quake.threeLayer.addMesh(mesh);
+  //     buildingMeshs.push(mesh);
+  //     polygons.length = 0;
+  // }
  
   quake.threeLayer.renderScene();
   quake.endLoadingBar();
