@@ -6,10 +6,10 @@ var quake = {
 };
 
 let buildingWorkers = new Worker('/js/dds/worker.buildingLoad.js');
-function backgroundBuildingLoad(worker, params, callback) {
+function backgroundBuildingLoad(worker, params) {
   const z_2 = quake.threeLayer.distanceToVector3(1000, 1000).x;
   const v_2 = quake.threeLayer.coordinateToVector3([0,0], z_2);
-  params.what = 'terrain';
+  params.what = 'terrainLoad';
   params.z_2 = z_2;
   params.v_2 = v_2;
   params.zResol = zResol;
@@ -49,37 +49,28 @@ function backgroundBuildingLoad(worker, params, callback) {
 
       worker.postMessage({what:'buildingLoad'});
     }
-    else if(e.data.what == 'coordinateToVector3'){
-      let rtnData = [];
-      for(var i=0; i<e.data.data.length; i++){
-        let tdata = e.data.data[i];
-        let pdata = tdata.pdata;
-        let eData = tdata.eData;
-        let sData = tdata.sData;
-        let vleng = tdata.geometryVerticesLength;
-        let tvL = [];
-        for (var j = 0, l = vleng; j < l; j++) {
-          const z = pdata[j][2]/zResol;//quake.threeLayer.distanceToVector3(pdata[i][2], pdata[i][2]).x;
-          const v = quake.threeLayer.coordinateToVector3([pdata[j][0],pdata[j][1]], z);
-          tvL.push(v);
-        }
-        rtnData.push({tvL, param:tdata.param, eData, sData});
-      }
-      
-      worker.postMessage({what:e.data.what, data: rtnData});
-    }
-    else if(e.data.what == 'features'){
-      let rtnData = [];
-      for(var i=0; i<e.data.data.length; i++){
-        let feature = e.data.data[i].feature;
-        let center = new maptalks.Coordinate(e.data.data[i].centerX, e.data.data[i].centerY);
-        const rtnCenter = quake.threeLayer.coordinateToVector3(center);
-        rtnData.push({originCenter:[e.data.data[i].centerX, e.data.data[i].centerY], center:rtnCenter, feature});
+    else if(e.data.what == 'buildingCreate'){
+      let polygons = [];
+      e.data.data.forEach(data=>{
+        let feature = data.feature;
+        const properties = feature.properties;
+        const polygon = maptalks.GeoJSON.toGeometry(feature);
+        polygon.custom_altitude = data.custom_altitude;
+        polygon.setProperties(properties);
+        polygons.push(polygon);
+
+      });
+      if(polygons.length > 0){
+        var buildingColor = '#BDBDBD';
+        var buildingMaterial = new THREE.MeshPhongMaterial({ color: buildingColor, transparent: true, opacity: 0.8 });
+        var mesh = quake.threeLayer.toExtrudePolygons(polygons.slice(0, Infinity), { topColor: '#fff', interactive: false }, buildingMaterial);
+        quake.threeLayer.addMesh(mesh);
+        polygons.length = 0;
       }
 
-      worker.postMessage({what:'featuresProcess', data: rtnData});
+      quake.threeLayer.renderScene();
     }
-  };
+  }
 }
 
 
@@ -90,12 +81,8 @@ quake.viewMap = function(){
   quake.setThreeLayer();
   //quake.set3DTile();
   //loadLevel(10);
-  //Terrain();
-  setTimeout(function(){
-    backgroundBuildingLoad(buildingWorkers, {}, function(e){
-      console.log(',.');
-    });
-  }, 1000);
+  //testTerrain();
+  backgroundBuildingLoad(buildingWorkers, {});
   animation();
 }
 var zResol = 80;
