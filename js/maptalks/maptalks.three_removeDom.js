@@ -5164,9 +5164,7 @@
         }
     }
 
-    var canvas = document.createElement('canvas');
-    var SIZE = 256;
-    canvas.width = canvas.height = SIZE;
+   
     function generateImage(key, debug) {
         if (debug === void 0) { debug = false; }
         var ctx = canvas.getContext('2d');
@@ -5666,7 +5664,7 @@
 
     // import { addAttribute } from './util/ThreeAdaptUtil';
     var textureLoader = new THREE.TextureLoader();
-    var canvas$1 = document.createElement('canvas'), tileSize = 256;
+ 
     function getRGBData(image, width, height) {
         if (width === void 0) { width = tileSize; }
         if (height === void 0) { height = tileSize; }
