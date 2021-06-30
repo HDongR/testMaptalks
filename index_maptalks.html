@@ -41,7 +41,11 @@
         <div id="map" class="container">
             
         </div>
-        <div id="coordinate"><span style="margin-left: 100px;" id="resultHeight"></span><button style="margin-left: 10px;" id="loadBuilding">loadBuilding</button></div>
+        <div id="coordinate"><span style="margin-left: 100px;" id="resultHeight"></span>
+            <button style="margin-left: 10px;" id="loadBuilding">loadBuilding</button>
+            <button style="margin-left: 10px;" id="loadTerrain" disabled>loadTerrain</button>
+            <button style="margin-left: 10px;" id="loadBuilding2" disabled>loadBuilding2</button>
+        </div>
         <!-- <canvas id="c" width="1024" height="700"></div> -->
     </body>
 
@@ -52,7 +56,14 @@
     <script>
         $('#loadBuilding').click(async function(){ 
             quake.setStaticalBuilding();
-        });  
+        });
+        $('#loadTerrain').click(async function(){ 
+            quake.loadTerrain();
+        });
+        $('#loadBuilding2').click(async function(){ 
+            quake.loadBuilding2();
+        });
+        
        
 
     </script>

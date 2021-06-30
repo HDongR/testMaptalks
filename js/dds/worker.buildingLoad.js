@@ -7,12 +7,25 @@ importScripts('/js/util/bufferParser.js');
 var ray = new THREE.Raycaster();
 var rayPos = new THREE.Vector3();
 var rayDir = new THREE.Vector3(0, 0, -1); // Ray points down
+var buildingData = null;
 var geometryList = [];
+var tileData = [];
+var bdData = [];
+
+let buildingDownloadWorker = new Worker('/js/dds/worker.buildingDownload.js');
+buildingDownloadWorker.postMessage({what:'buildingDownload'});
+buildingDownloadWorker.onmessage = (e) => {
+    let result = new TextDecoder("utf-8").decode(e.data);
+    buildingData = JSON.parse(result);
+}
 
 onmessage = async function (e) {
-    if(e.data.what == 'terrainLoad'){
-        const z_2 = e.data.z_2;//quake.threeLayer.distanceToVector3(1000, 1000).x;
-        const v_2 = e.data.v_2;//quake.threeLayer.coordinateToVector3([129.152369,35.153617], z_2);
+    let dd = ab2str(e.data);
+    let buf = JSON.parse(dd);
+    if(buf.what == 'TRLD'){
+        const z_2 = 8.001423545269063;
+        const v_2 = new THREE.Vector3(0, 0, z_2);
+        const zResol = 80;
         rayPos.set(v_2.x, v_2.y, v_2.z);
     
         var coordMin = new maptalks.Coordinate(128.783010, 34.980677);
@@ -37,7 +50,6 @@ onmessage = async function (e) {
             }
         }
     
-        let rtnData = [];
         let urls = [];
         let params = [];
         for (var i=0 ; i<idxIdyList.length ; i++) {
@@ -109,7 +121,7 @@ onmessage = async function (e) {
 
             var geometry = new THREE.PlaneGeometry(1, 1, 64, 64);
             for (var i = 0, l = geometry.vertices.length; i < l; i++) {
-                const z = pdata[i][2]/e.data.zResol;//quake.threeLayer.distanceToVector3(pdata[i][2], pdata[i][2]).x;
+                const z = pdata[i][2]/zResol;//quake.threeLayer.distanceToVector3(pdata[i][2], pdata[i][2]).x;
                 const v = coordinateToVector3([pdata[i][0],pdata[i][1]], z);
                 geometry.vertices[i].x = v.x;
                 geometry.vertices[i].y = v.y;
@@ -122,52 +134,36 @@ onmessage = async function (e) {
             var plane = new THREE.Mesh(geometry, material);   
             plane.custom2DExtent = new maptalks.Extent(sData[0], sData[1], eData[0], eData[1]);
             geometryList.push(plane);
-            rtnData.push({sData, eData, vtxList, address});
+            tileData.push({sData, eData, vtxList, address});
         }
-        this.postMessage({what:'terrainCreate',data:rtnData});
+
+        let buff = str2ab(JSON.stringify({what:'TRCP'}));
+        this.postMessage(buff);
+
+        this.setTimeout(function(){
+            _loadBuilding();
+        }, 4000);
     }
-    else if(e.data.what == 'buildingLoad'){
-        let url = 'http://220.123.241.100:8181/geoserver/dds/ows?service=WFS&version=1.0.0&request=GetFeature&typeName=dds%3Atb_building_g2&outputFormat=application%2Fjson';
-        let buildingSize = 80805888;
-        let response = await fetch(url);
-        const reader = response.body.getReader();
-        const contentLength = buildingSize;//+response.headers.get('Content-Length');
-
-        let receivedLength = 0; // received that many bytes at the moment
-        let chunks = []; // array of received binary chunks (comprises the body)
-        while(true) {
-            const {done, value} = await reader.read();
-
-            if (done) {
-                break;
-            }
-
-            chunks.push(value);
-            receivedLength += value.length;
-            var tic = receivedLength / contentLength * 100;
-            tic = Math.round(tic * 100) / 100;
-            //if(tic < 90) quake.progressPBar(tic); else quake.progressBarContents('데이터 취합중..');
+    else if(buf.what == 'TRCR'){
+        if(tileData.length > 0){
+            let buff = str2ab(JSON.stringify({what:'TRCR', data:tileData}));
+            this.postMessage(buff);
         }
-
-        // Step 4: concatenate chunks into single Uint8Array
-        let chunksAll = new Uint8Array(receivedLength); // (4.1)
-        let position = 0;
-        for(let chunk of chunks) {
-        chunksAll.set(chunk, position); // (4.2)
-        position += chunk.length;
+    }
+    else if(buf.what == 'BDCR'){
+        if(bdData.length > 0){
+            this.postMessage({what:'BDCR', data:bdData});
         }
-
-        // Step 5: decode into a string
-        let result = new TextDecoder("utf-8").decode(chunksAll);
-
-        // We're done!
-        let commits = JSON.parse(result);
-
+    }
+    
+}
+function _loadBuilding(){
+    if(buildingData){
         let positionHelper = new THREE.Object3D();
         positionHelper.position.z = 1;
-        let rtnData = [];
-        for(var i=0; i< commits.features.length; i++){
-            let feature = commits.features[i];
+
+        for(var i=0; i< buildingData.features.length; i++){
+            let feature = buildingData.features[i];
             const geometry = feature.geometry;
             const type = feature.geometry.type;
             if (['Polygon', 'MultiPolygon'].includes(type)) {
@@ -192,15 +188,17 @@ onmessage = async function (e) {
                     if(containGeo){
                         let intersect = ray.intersectObject(containGeo);
                         if (intersect.length > 0) {
-                            rtnData.push({feature, custom_altitude:intersect[0].point.z});
+                            bdData.push({feature, custom_altitude:intersect[0].point.z});
                         }
                     }
                 }
             }
         }
-        this.postMessage({what:'buildingCreate', data:rtnData});
+        let buff = str2ab(JSON.stringify({what:'BDCP'}));
+        this.postMessage(buff);
+    }else{
+        setTimeout(function(){_loadBuilding();}, 1000);
     }
-    
 }
 
 function project(coord){
@@ -236,4 +234,22 @@ function coordinateToVector3(coordinate, z) {
     var p = project(coordinate);
     var p2 = prjToPoint(p);
     return new THREE.Vector3(p2.x, p2.y, z);
-};
+}
+
+function ab2str(buf) {
+    var uintArray = new Uint16Array(buf);
+    var converted = [];
+    uintArray.forEach(function(byte) {
+        converted.push(String.fromCharCode(byte))
+    });
+    return converted.join('');
+}
+
+function str2ab(str) {
+    var buf = new ArrayBuffer(str.length*2); // 2 bytes for each char
+    var bufView = new Uint16Array(buf);
+    for (var i=0, strLen=str.length; i < strLen; i++) {
+        bufView[i] = str.charCodeAt(i);
+    }
+    return buf;
+}

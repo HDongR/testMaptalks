@@ -5,20 +5,56 @@ var quake = {
 //  geojsonVtLayer : {},
 };
 
+function ab2str(buf) {
+  var uintArray = new Uint16Array(buf);
+  var converted = [];
+  uintArray.forEach(function(byte) {
+      converted.push(String.fromCharCode(byte))
+  });
+  return converted.join('');
+}
+
+function str2ab(str) {
+  var buf = new ArrayBuffer(str.length*2); // 2 bytes for each char
+  var bufView = new Uint16Array(buf);
+  for (var i=0, strLen=str.length; i < strLen; i++) {
+    bufView[i] = str.charCodeAt(i);
+  }
+  return buf;
+}
+
 let buildingWorkers = new Worker('/js/dds/worker.buildingLoad.js');
-function backgroundBuildingLoad(worker, params) {
-  const z_2 = quake.threeLayer.distanceToVector3(1000, 1000).x;
-  const v_2 = quake.threeLayer.coordinateToVector3([0,0], z_2);
-  params.what = 'terrainLoad';
-  params.z_2 = z_2;
-  params.v_2 = v_2;
-  params.zResol = zResol;
-  worker.postMessage(params);
+
+quake.loadTerrain = function(){
+  let buff = str2ab(JSON.stringify({what:'TRCR'}));
+  buildingWorkers.postMessage(buff);
+}
+
+quake.loadBuilding2 = function(){
+  let buff = str2ab(JSON.stringify({what:'BDCR'}));
+  buildingWorkers.postMessage(buff);
+}
+
+function backgroundBuildingLoad() {
+  let buff = str2ab(JSON.stringify({what:'TRLD'}));
+  buildingWorkers.postMessage(buff);
   runing = true; 
 
-  worker.onmessage = (e) => {
-    if(e.data.what == 'terrainCreate'){
-      e.data.data.forEach(data=>{
+  buildingWorkers.onmessage = (e) => {
+    let buf = null;
+    if(e.data.what){
+      buf = e.data;
+    }else{
+      buf = JSON.parse(ab2str(e.data));
+    }
+    if(buf.what == 'TRCP'){
+      $('#loadTerrain').prop('disabled', false);
+    }
+    else if(buf.what == 'BDCP'){
+      $('#loadBuilding2').prop('disabled', false);
+    }
+    else if(buf.what == 'TRCR'){
+      buf.data.forEach(data=>{
         let geometry = new THREE.PlaneGeometry(1, 1, 64, 64);
         for(var j=0; j<data.vtxList.length; j+=3){
             let vertexX = data.vtxList[j];
@@ -46,12 +82,10 @@ function backgroundBuildingLoad(worker, params) {
 
       });
       quake.threeLayer.renderScene();
-
-      worker.postMessage({what:'buildingLoad'});
     }
-    else if(e.data.what == 'buildingCreate'){
+    else if(buf.what == 'BDCR'){
       let polygons = [];
-      e.data.data.forEach(data=>{
+      buf.data.forEach(data=>{
         let feature = data.feature;
         const properties = feature.properties;
         const polygon = maptalks.GeoJSON.toGeometry(feature);
@@ -82,8 +116,8 @@ quake.viewMap = function(){
   //quake.set3DTile();
   //loadLevel(10);
   //testTerrain();
-  backgroundBuildingLoad(buildingWorkers, {});
-  animation();
+  backgroundBuildingLoad();
+  //animation();
 }
 var zResol = 80;
 var startZoom = 10;

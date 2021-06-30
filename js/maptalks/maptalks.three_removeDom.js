@@ -43,7 +43,7 @@
      */
     var REVISION = parseInt(THREE.REVISION.replace('dev', ''));
     //Three does not print version information now. Output the version of three to find compatibility problems
-    console.log("maptalks.three log: current three.js version is %c" + REVISION, 'color:red;font-size: 16px;font-weight: bold;');
+    //console.log("maptalks.three log: current three.js version is %c" + REVISION, 'color:red;font-size: 16px;font-weight: bold;');
     /**
      *
      * @param {THREE.BufferGeometry} bufferGeomertry
@@ -7908,7 +7908,7 @@
 
     Object.defineProperty(exports, '__esModule', { value: true });
 
-    typeof console !== 'undefined' && console.log('maptalks.three v0.15.0, requires maptalks@>=0.39.0.');
+    //typeof console !== 'undefined' && console.log('maptalks.three v0.15.0, requires maptalks@>=0.39.0.');
 
 })));
 //# sourceMappingURL=maptalks.three.js.map

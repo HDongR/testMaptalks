@@ -32572,6 +32572,6 @@
 
   Object.defineProperty(exports, '__esModule', { value: true });
 
-  typeof console !== 'undefined' && console.log && console.log('maptalks v0.49.2');
+  // typeof console !== 'undefined' && console.log && console.log('maptalks v0.49.2');
 
 })));
