@@ -115,9 +115,9 @@ quake.viewMap = function(){
   quake.setThreeLayer();
   //quake.set3DTile();
   //loadLevel(10);
-  //testTerrain();
-  backgroundBuildingLoad();
-  //animation();
+  testTerrain();
+  //backgroundBuildingLoad();
+  animation();
 }
 var zResol = 80;
 var startZoom = 10;
@@ -150,7 +150,13 @@ function handleAction(){
   }
 	if ( keyboard.pressed("right") ){
     rayPos.x += moveDistance;
-    MovingCube.position.x += moveDistance;
+    for(var i=0; i<MovingCube.geometry._bufferGeometry.attributes.position.array.length; i++){
+      MovingCube.geometry._bufferGeometry.attributes.position.array[i] +=moveDistance;
+    }
+    MovingCube.geometry._bufferGeometry.attributes.position.needsUpdate = true;
+    MovingCube.geometry.computeBoundingBox();
+    MovingCube.geometry.computeBoundingSphere();
+    //MovingCube.position.x += moveDistance;
   }
 	if ( keyboard.pressed("W") ){
     rayPos.z += moveDistance;
@@ -186,7 +192,7 @@ function animation() {
   if (quake.threeLayer._needsUpdate) {
     quake.threeLayer.renderScene();
   }
-  //handleAction();
+  handleAction();
   requestAnimationFrame(animation);
 }
 
@@ -337,10 +343,12 @@ function testTerrain(){
 
   setTimeout(function(){
     var cubeGeometry = new THREE.CubeGeometry(0.1,0.1,0.1,1,1,1);
-    var wireMaterial = new THREE.MeshBasicMaterial( { color: 0xff0000, wireframe:true } );
-    MovingCube = new THREE.Mesh( cubeGeometry, wireMaterial );
+    //var wireMaterial = new THREE.MeshBasicMaterial( { color: 0xff0000, wireframe:true } );
+    var material = new THREE.MeshLambertMaterial( { color: 0x0000ff } );
+
+    MovingCube = new THREE.Mesh( cubeGeometry, material );
     
-    const z_2 = quake.threeLayer.distanceToVector3(50, 50).x;
+    const z_2 = quake.threeLayer.distanceToVector3(100, 100).x;
     const v_2 = quake.threeLayer.coordinateToVector3([129.152369,35.153617], z_2);
     MovingCube.position.set(v_2.x, v_2.y, v_2.z);
     
