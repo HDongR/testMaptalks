@@ -80,7 +80,7 @@ var quake = {
      
   }
  
-  function testWAVText(){
+  async function testWAVText(){
     fetch('/test/ztest.txt').then(res=>res.text()).then(data=>{
         let sd = data.split(' ');
         console.log(sd);
@@ -90,6 +90,56 @@ var quake = {
         let sd = data.split(' ');
         console.log(sd);
     });
+
+    let pros = await fetch('/test/ph.csv');
+    let prosTxt = await pros.text();
+    let points = [];
+    Papa.parse(prosTxt, {
+        complete: function(results) {
+            let data = results.data;
+            for(var i=0; i<data.length; i++){
+                let row = data[i];
+                if(i==0){ //헤더
+                      if(row[0]=='name' && row[1] == 'lat' && row[2] == 'lon' && row[3] == 'pgv'){
+                      }else{
+                          alert("잘못된 형식입니다.\n헤더는 [name,lat,lon,pgv]로 구성되어야 합니다.");
+                          return;
+                      }
+                }else{
+                    let name = row[0];
+                    let lat = Number(row[1]);
+                    let lon = Number(row[2]);
+                    let pgv = Number(row[3]);
+                    if(lon && lat){
+                        var point = new maptalks.Marker([lon, lat],
+                        {
+                            visible : true,
+          editable : true,
+          cursor : 'pointer',
+          shadowBlur : 0,
+          shadowColor : 'black',
+          draggable : false,
+          dragShadow : false, // display a shadow during dragging
+          drawOnAxis : null,  // force dragging stick on a axis, can be: x, y
+          symbol : {
+            'textFaceName' : 'sans-serif',
+            'textName' : 'MapTalks',
+            'textFill' : '#34495e',
+            'textHorizontalAlignment' : 'right',
+            'textSize' : 40
+          }
+                        });
+                        points.push(point);
+                    }
+                }
+                
+            }
+        }
+    });
+
+    
+      new maptalks.VectorLayer('vector', points).addTo(quake.map);
+
   }
 
   var bars = [];
@@ -139,15 +189,15 @@ var quake = {
                 minLat = 34.978977,
                 maxLat = 35.396265;
             const lnglats = [];
-            const NUM = 50;
-            const rows = 49,
-                cols = 49;
+            const NUM = 100;
+            const rows = 99,
+                cols = 99;
             const app = (window.app = new App(NUM, NUM));
             for (let i = 0; i <= cols; i++) {
                 const lng = ((maxLng - minLng) / cols) * i + minLng;
                 for (let j = 0; j <= rows; j++) {
                     const lat = ((maxLat - minLat) / rows) * j + minLat;
-                    const bar = quake.threeLayer.toBar([lng, lat], { height: 2000, radius: 100, radialSegments: 4, interactive: false }, material);
+                    const bar = quake.threeLayer.toBar([lng, lat], { height: 2000, radius: 260, radialSegments: 4, interactive: false }, material);
                     bar.getObject3d().rotation.z = Math.PI / 4;
                     bars.push(bar);
                     app.staggerArray.push({
