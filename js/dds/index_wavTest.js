@@ -76,9 +76,8 @@ quake.setThreeLayer = function () {
     //update();
 
     //quake.map.on('moving moveend zoomend pitch rotate', testing);
-
 }
-function getColor(pga){ 
+function getColor(pga) {
     let maxV = 20;
     let maxCV = 255;
     let c = pga / maxV;
@@ -90,60 +89,60 @@ function getColor(pga){
     return color;
 }
 
-async function testTimeText(){
-
-
+async function testTimeText() {
     dfd.read_csv("http://localhost:5500/test/test_time_pgv.csv.")
-    .then(df => {
-        let data = df.data;
-        let columns = df.columns;
-        if (columns[0].trim() == 'name' && columns[1].trim() == 'lat' && columns[2].trim() == 'lon' && columns[3].trim() == 'max_pgv' && columns[4].trim() == 'times_pga') {
-        } else {
-            alert("잘못된 형식입니다.\n헤더는 [name,lat,lon,max_pgv,times_pga]로 구성되어야 합니다.");
-            return;
-        }
-
-        for (var i = 0; i < data.length; i++) {
-            if(i == 1) break;
-            let row = data[i];
-            let name = row[0];
-            let lat = Number(row[1]);
-            let lon = Number(row[2]);
-            let max_pgv = Number(row[3]);
-            let times_pga = row[4];
-
-            
-
-            if (lon && lat) {
-                let splitpga = times_pga.split(' ');
-                let splitpga_ = [];
-                for(var k=0; k<splitpga.length; k++){
-                    if(splitpga[k] == '')continue;
-                    splitpga_.push(splitpga[k]);
-                }
-
-                let _color = getColor(splitpga_[0]);
-                var pgaMaterial = new THREE.MeshPhongMaterial({color:_color, transparent: true, opacity: 0.8 });
-                const bar = quake.threeLayer.toBar([lon, lat], { height: 2000, radius: 260, radialSegments: 4, interactive: false }, pgaMaterial);
-                bar.getObject3d().rotation.z = Math.PI / 4;
-                bars.push(bar);
-                
+        .then(df => {
+            let data = df.data;
+            let columns = df.columns;
+            if (columns[0].trim() == 'name' && columns[1].trim() == 'lat' && columns[2].trim() == 'lon' && columns[3].trim() == 'max_pgv' && columns[4].trim() == 'times_pga') {
             } else {
-                console.log(data.length, i, lon, lat);
+                alert("잘못된 형식입니다.\n헤더는 [name,lat,lon,max_pgv,times_pga]로 구성되어야 합니다.");
+                return;
             }
 
-        }
+            for (var i = 0; i < data.length; i++) {
+                if (i == 1) break;
+                let row = data[i];
+                let name = row[0];
+                let lat = Number(row[1]);
+                let lon = Number(row[2]);
+                let max_pgv = Number(row[3]);
+                let times_pga = row[4];
 
-        quake.threeLayer.addMesh(bars);
 
-    }).catch(err => {
-        console.log(err);
-    })
-    
-    
+
+                if (lon && lat) {
+                    let splitpga = times_pga.split(' ');
+                    let splitpga_ = [];
+                    for (var k = 0; k < splitpga.length; k++) {
+                        if (splitpga[k] == '') continue;
+                        splitpga_.push(splitpga[k]);
+                    }
+
+                    let _color = getColor(splitpga_[0]);
+                    var pgaMaterial = new THREE.MeshPhongMaterial({ color: _color, transparent: true, opacity: 0.8 });
+                    const bar = quake.threeLayer.toBar([lon, lat], { height: 2000, radius: 260, radialSegments: 4, interactive: false }, pgaMaterial);
+                    bar.getObject3d().rotation.z = Math.PI / 4;
+                    bars.push(bar);
+
+                } else {
+                    console.log(data.length, i, lon, lat);
+                }
+
+            }
+
+            quake.threeLayer.addMesh(bars);
+
+        }).catch(err => {
+            console.log(err);
+        })
+
+
 
     //new maptalks.VectorLayer('vector', points).addTo(quake.map);
 }
+
+
 
 async function testWAVText() {
     fetch('/test/ztest.txt').then(res => res.text()).then(data => {
@@ -175,15 +174,7 @@ async function testWAVText() {
                     let lat = Number(row[1]);
                     let lon = Number(row[2]);
                     let pgv = Number(row[3]);
-                    let maxV = 10;
-                    let maxCV = 255;
-                    let c = pgv / 10;
-                    let c2 = maxCV * c;
-
-                    let hex1 = (Number(Math.round(c2))).toString(16);
-                    let color = "#ff" + String(hex1) + "00";
                     if (lon && lat) {
-                        //console.log(pgv);
                         var point = new maptalks.Marker([lon, lat],
                             {
                                 visible: true,
@@ -196,19 +187,13 @@ async function testWAVText() {
                                 drawOnAxis: null,  // force dragging stick on a axis, can be: x, y
                                 symbol: {
                                     'textFaceName': 'sans-serif',
-                                    'textName': String(i + 1),
-                                    'textFill': color,
+                                    'textName': 'MapTalks',
+                                    'textFill': '#34495e',
                                     'textHorizontalAlignment': 'right',
-                                    'textSize': 7
+                                    'textSize': 40
                                 }
                             });
-                        point.on('mousedown mouseup click dblclick contextmenu touchstart touchend', onEvent);
-
-
-
                         points.push(point);
-                    } else {
-                        console.log(data.length, i, lon, lat);
                     }
                 }
 
@@ -216,9 +201,7 @@ async function testWAVText() {
         }
     });
 
-
     new maptalks.VectorLayer('vector', points).addTo(quake.map);
-
 }
 
 //var events = [];
@@ -269,6 +252,7 @@ const fragmentShader = `
     }
     `;
 
+
 const material = new THREE.ShaderMaterial({
     uniforms: {
         thickness: {
@@ -278,6 +262,7 @@ const material = new THREE.ShaderMaterial({
     vertexShader,
     fragmentShader
 });
+
 function addBars(scene) {
     const minLng = 128.755734,
         maxLng = 129.314373,
