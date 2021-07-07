@@ -21,6 +21,9 @@ function animation() {
     if (quake.threeLayer._needsUpdate) {
         quake.threeLayer.renderScene();
     }
+
+    //barAnim();
+    barAnim2();
     requestAnimationFrame(animation);
 }
 
@@ -48,7 +51,7 @@ quake.setBaseLayer = function () {
     });
 
 }
-
+let what = 0;
 //three layer 생성
 quake.setThreeLayer = function () {
     quake.threeLayer = new maptalks.ThreeLayer('t', {
@@ -57,6 +60,7 @@ quake.setThreeLayer = function () {
     });
 
     quake.threeLayer.prepareToDraw = function (gl, scene, camera) {
+        console.log('what', what);
         stats = new Stats();
         stats.domElement.style.zIndex = 100;
         document.getElementById('map').appendChild(stats.domElement);
@@ -66,11 +70,14 @@ quake.setThreeLayer = function () {
         scene.add(light);
         //addBars(scene);
         //testWAVText();
-        testTimeText();
+        //testTimeText();
+        
     }
 
     quake.threeLayer.addTo(quake.map);
-
+    if(what == 0)
+    testTimeText2();
+    what++;
     //quake.map.on('moving moveend zoomend pitch rotate', update);
 
     //update();
@@ -90,7 +97,7 @@ function getColor(pga) {
 }
 
 async function testTimeText() {
-    dfd.read_csv("http://localhost:5500/test/test_time_pgv.csv.")
+    dfd.read_csv("http://localhost:5500/test/test_time_pgv.csv")
         .then(df => {
             let data = df.data;
             let columns = df.columns;
@@ -101,7 +108,7 @@ async function testTimeText() {
             }
 
             for (var i = 0; i < data.length; i++) {
-                if (i == 1) break;
+                if (i == 10000) break;
                 let row = data[i];
                 let name = row[0];
                 let lat = Number(row[1]);
@@ -121,7 +128,7 @@ async function testTimeText() {
 
                     let _color = getColor(splitpga_[0]);
                     var pgaMaterial = new THREE.MeshPhongMaterial({ color: _color, transparent: true, opacity: 0.8 });
-                    const bar = quake.threeLayer.toBar([lon, lat], { height: 2000, radius: 260, radialSegments: 4, interactive: false }, pgaMaterial);
+                    const bar = quake.threeLayer.toBar([lon, lat], { height: 1000, radius: 260, radialSegments: 4, interactive: false, splitpga_}, pgaMaterial);
                     bar.getObject3d().rotation.z = Math.PI / 4;
                     bars.push(bar);
 
@@ -136,12 +143,176 @@ async function testTimeText() {
         }).catch(err => {
             console.log(err);
         })
-
-
-
     //new maptalks.VectorLayer('vector', points).addTo(quake.map);
 }
+let test_ = 0;
+let isEndIdx = 0;
+function barAnim(){
+    bars.forEach(b=>{
+        isEndIdx = b.options.splitpga_.length;
+        let pga = b.options.splitpga_[test_];
+        let _color = getColor(pga);
+        b.object3d.material.color.set(_color);
+        b.object3d.material.needsUpdate = true;
+        b.setAltitude(pga * 1000);
+    });
+    if(bars.length > 0){
+        test_++;
+        if(isEndIdx <= test_){
+            test_ = 0;
+        }
+    }
+}
 
+let geometries = [];
+let mergedBars = null;
+//let zValues = [];
+let __data = [];
+async function testTimeText2() {
+    let df = await dfd.read_csv("http://localhost:5500/test/test_time_pgv.csv");
+    let data = df.data.slice(0);
+    let columns = df.columns;
+    if (columns[0].trim() == 'name' && columns[1].trim() == 'lat' && columns[2].trim() == 'lon' && columns[3].trim() == 'max_pgv' && columns[4].trim() == 'times_pga') {
+    } else {
+        alert("잘못된 형식입니다.\n헤더는 [name,lat,lon,max_pgv,times_pga]로 구성되어야 합니다.");
+        return;
+    }
+
+    for (var member in df) delete df[member];
+     
+
+    for (var i = 0; i < data.length; i++) {
+        //if (i == 10000) break;
+        let row = data[i];
+        let name = row[0];
+        let lat = Number(row[1]);
+        let lon = Number(row[2]);
+        let max_pgv = Number(row[3]);
+        let times_pga = row[4];
+
+        if (lon && lat) {
+            
+            let splitpga = times_pga.split(' ');
+            
+            let splitpga_ = [];
+            for (var k = 0; k < splitpga.length; k++) {
+                if (splitpga[k] == '') continue;
+                splitpga_.push(splitpga[k]);
+            }
+            
+            __data.push({lat, lon, splitpga_:splitpga_.slice(0)});
+            console.log(i);
+            for (var member in splitpga_) {
+                delete splitpga_[member];
+            }
+            for (var member in splitpga) {
+                delete splitpga[member];
+            }
+        }
+
+        for (var member in data[i]) {
+            delete data[i][member];
+        }
+    }
+    resolutionWAV();
+}
+
+function resolutionWAV(){
+    const positionHelper = new THREE.Object3D();
+    positionHelper.position.z = 1;
+    for (var i = 0; i < __data.length; i++) {
+        let __d = __data[i];
+        let splitpga_ = __d.splitpga_;
+        let _color = getColor(splitpga_[0]);
+
+        let boxDepth = splitpga_[0] * 100;
+        boxDepth = boxDepth == 0 ? 1 : boxDepth;
+        const geometry = new THREE.BoxGeometry(1, 1, boxDepth);
+        var position = quake.threeLayer.coordinateToVector3([__d.lon, __d.lat]);
+        positionHelper.position.y = position.y;
+        positionHelper.position.x = position.x; 
+        positionHelper.position.z = boxDepth/2;
+        
+        positionHelper.updateWorldMatrix(true, false);
+        geometry.applyMatrix4(positionHelper.matrixWorld);
+
+        const color = new THREE.Color(_color); 
+        const rgb = color.toArray().map(v => v * 255);
+
+        const numVerts = geometry.getAttribute('position').count;
+        const itemSize = 3;  // r, g, b
+        const colors = new Uint8Array(itemSize * numVerts);
+        colors.forEach((v, ndx) => {
+            colors[ndx] = rgb[ndx % 3];
+        });
+        const normalized = true;
+        const colorAttrib = new THREE.BufferAttribute(colors, itemSize, normalized);
+        geometry.setAttribute('color', colorAttrib);
+        geometries.push(geometry);
+ 
+    }
+
+    if(geometries.length > 0){
+        const mergedGeometry = BufferGeometryUtils.mergeBufferGeometries(geometries, false);
+        const material = new THREE.MeshBasicMaterial({
+            vertexColors: true,
+            transparent: true,
+            opacity:0.8
+        });
+            
+        mergedBars = new THREE.Mesh(mergedGeometry, material);
+        quake.threeLayer.addMesh(mergedBars);
+    }
+}
+
+let test_2 = 0;
+let isEndIdx2 = 0;
+function barAnim2(){
+    if(mergedBars != null){
+        isEndIdx2 = 12200;
+        let attr = mergedBars.geometry.attributes;
+        let psCnt = 24;
+        let nextIdx = 0;
+        for(var i=0; i<attr.position.count; i++){
+            
+            if(i % psCnt == 0 && i >= psCnt){
+                nextIdx++;
+            }
+
+            let mz = [2,8,17,23,32,35,38,41,50,53,56,59];
+            let kk = i*3;
+            let kk2 = kk-1;
+            
+            if(kk2 % 2 == 0 || kk2 % 8 == 0 || kk2 % 17 == 0 || kk2 % 23 == 0 || kk2 % 32 == 0 || kk2 % 35 == 0 || kk2 % 38 == 0 || kk2 % 41 == 0 || kk2 % 50 == 0 ||
+                kk2 % 53 == 0 || kk2 % 56 == 0 || kk2 % 59 == 0){
+ 
+                let v = __data[nextIdx].splitpga_[test_2];
+                let boxDepth = v * 100;
+                if(boxDepth == 0){
+                    continue;
+                }
+                boxDepth = boxDepth == 0 ? 1 : boxDepth;
+
+                attr.position.setZ(i, boxDepth);//array[i] = boxDepth;
+            }
+        }
+        mergedBars.geometry.attributes.position.needsUpdate = true;
+        mergedBars.geometry.computeBoundingBox();
+        mergedBars.geometry.computeBoundingSphere();
+
+        // isEndIdx = b.options.splitpga_.length;
+        // let pga = b.options.splitpga_[test_];
+        // let _color = getColor(pga);
+        // b.object3d.material.color.set(_color);
+        // b.object3d.material.needsUpdate = true;
+        // b.setAltitude(pga * 1000);
+
+        test_2++;
+        if(isEndIdx2 <= test_2){
+            test_2 = 0;
+        }
+    } 
+}
 
 
 async function testWAVText() {
