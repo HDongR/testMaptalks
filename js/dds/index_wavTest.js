@@ -179,9 +179,9 @@ async function testTimeText2() {
     }
 
     for (var member in df) delete df[member];
-     
+    df = null;
 
-    for (var i = 0; i < data.length; i++) {
+    for (var i = 0; i < data.length; i+=20) {
         //if (i == 10000) break;
         let row = data[i];
         let name = row[0];
@@ -201,18 +201,21 @@ async function testTimeText2() {
             }
             
             __data.push({lat, lon, splitpga_:splitpga_.slice(0)});
-            console.log(i);
-            for (var member in splitpga_) {
-                delete splitpga_[member];
-            }
-            for (var member in splitpga) {
-                delete splitpga[member];
-            }
+            //console.log(i);
+            splitpga_.length = 0;
+            
+            splitpga.length = 0;
+            
         }
-
-        for (var member in data[i]) {
-            delete data[i][member];
-        }
+        data[i].length = 0;
+        name = null;
+        lat = null;
+        lon = null;
+        max_pgv = null;
+        times_pga = null;
+        splitpga_ = null;
+        splitpga = null;
+        data[i] = null;
     }
     resolutionWAV();
 }
@@ -220,14 +223,14 @@ async function testTimeText2() {
 function resolutionWAV(){
     const positionHelper = new THREE.Object3D();
     positionHelper.position.z = 1;
-    for (var i = 0; i < __data.length; i++) {
+    for (var i = 0; i < __data.length; i) {
         let __d = __data[i];
         let splitpga_ = __d.splitpga_;
         let _color = getColor(splitpga_[0]);
 
         let boxDepth = splitpga_[0] * 100;
         boxDepth = boxDepth == 0 ? 1 : boxDepth;
-        const geometry = new THREE.BoxGeometry(1, 1, boxDepth);
+        const geometry = new THREE.BoxGeometry(3, 3, boxDepth);
         var position = quake.threeLayer.coordinateToVector3([__d.lon, __d.lat]);
         positionHelper.position.y = position.y;
         positionHelper.position.x = position.x; 
@@ -279,7 +282,7 @@ function barAnim2(){
                 nextIdx++;
             }
 
-            let mz = [2,8,17,23,32,35,38,41,50,53,56,59];
+            // let mz = [2,8,17,23,32,35,38,41,50,53,56,59];
             let kk = i*3;
             let kk2 = kk-1;
             
@@ -297,8 +300,8 @@ function barAnim2(){
             }
         }
         mergedBars.geometry.attributes.position.needsUpdate = true;
-        mergedBars.geometry.computeBoundingBox();
-        mergedBars.geometry.computeBoundingSphere();
+        //mergedBars.geometry.computeBoundingBox();
+        //mergedBars.geometry.computeBoundingSphere();
 
         // isEndIdx = b.options.splitpga_.length;
         // let pga = b.options.splitpga_[test_];
