@@ -24,6 +24,7 @@ function animation() {
 
     //barAnim();
     barAnim2();
+   
     requestAnimationFrame(animation);
 }
 
@@ -51,7 +52,7 @@ quake.setBaseLayer = function () {
     });
 
 }
-let what = 0;
+
 //three layer 생성
 quake.setThreeLayer = function () {
     quake.threeLayer = new maptalks.ThreeLayer('t', {
@@ -60,7 +61,6 @@ quake.setThreeLayer = function () {
     });
 
     quake.threeLayer.prepareToDraw = function (gl, scene, camera) {
-        console.log('what', what);
         stats = new Stats();
         stats.domElement.style.zIndex = 100;
         document.getElementById('map').appendChild(stats.domElement);
@@ -68,106 +68,100 @@ quake.setThreeLayer = function () {
         var light = new THREE.DirectionalLight(0xffffff);
         light.position.set(0, -10, 10).normalize();
         scene.add(light);
-        //addBars(scene);
-        //testWAVText();
-        //testTimeText();
+        testTimeText2();
         
     }
 
-    quake.threeLayer.addTo(quake.map);
-    if(what == 0)
-    testTimeText2();
-    what++;
+    quake.threeLayer.addTo(quake.map); 
+
     //quake.map.on('moving moveend zoomend pitch rotate', update);
 
     //update();
 
     //quake.map.on('moving moveend zoomend pitch rotate', testing);
 }
-function getColor(pga) {
-    let maxV = 20;
-    let maxCV = 255;
-    let c = pga / maxV;
-    let c2 = maxCV * c;
 
-    let hex1 = String((Number(Math.round(c2))).toString(16));
-    hex1 = hex1.length == 1 ? '0' + hex1 : hex1;
-    let color = "#ff" + hex1 + "00";
-    return color;
-}
+var hardwareConcurrency = typeof window !== 'undefined' ? window.navigator.hardwareConcurrency || 4 : 0;
+var workerCount = Math.max(Math.floor(hardwareConcurrency / 2), 1) + 1;
+var currentWorker = 0;
+var workerList = [];
 
-async function testTimeText() {
-    dfd.read_csv("http://localhost:5500/test/test_time_pgv.csv")
-        .then(df => {
-            let data = df.data;
-            let columns = df.columns;
-            if (columns[0].trim() == 'name' && columns[1].trim() == 'lat' && columns[2].trim() == 'lon' && columns[3].trim() == 'max_pgv' && columns[4].trim() == 'times_pga') {
-            } else {
-                alert("잘못된 형식입니다.\n헤더는 [name,lat,lon,max_pgv,times_pga]로 구성되어야 합니다.");
-                return;
+let receivedData = {};
+for(var i=0; i<workerCount; i++){
+    let w = new Worker('/js/dds/wav_worker.js');
+    w.onmessage = function(e) {
+        receivedData[e.data.id] = e.data.resultData;
+
+        if(objSize(receivedData) == workerCount){
+            let sortedO = sortObject(receivedData);
+            for (k in sortedO){
+                let zxdf = sortedO[k];
+                __data.push(...zxdf);
             }
-
-            for (var i = 0; i < data.length; i++) {
-                if (i == 10000) break;
-                let row = data[i];
-                let name = row[0];
-                let lat = Number(row[1]);
-                let lon = Number(row[2]);
-                let max_pgv = Number(row[3]);
-                let times_pga = row[4];
-
-
-
-                if (lon && lat) {
-                    let splitpga = times_pga.split(' ');
-                    let splitpga_ = [];
-                    for (var k = 0; k < splitpga.length; k++) {
-                        if (splitpga[k] == '') continue;
-                        splitpga_.push(splitpga[k]);
-                    }
-
-                    let _color = getColor(splitpga_[0]);
-                    var pgaMaterial = new THREE.MeshPhongMaterial({ color: _color, transparent: true, opacity: 0.8 });
-                    const bar = quake.threeLayer.toBar([lon, lat], { height: 1000, radius: 260, radialSegments: 4, interactive: false, splitpga_}, pgaMaterial);
-                    bar.getObject3d().rotation.z = Math.PI / 4;
-                    bars.push(bar);
-
-                } else {
-                    console.log(data.length, i, lon, lat);
-                }
-
-            }
-
-            quake.threeLayer.addMesh(bars);
-
-        }).catch(err => {
-            console.log(err);
-        })
-    //new maptalks.VectorLayer('vector', points).addTo(quake.map);
-}
-let test_ = 0;
-let isEndIdx = 0;
-function barAnim(){
-    bars.forEach(b=>{
-        isEndIdx = b.options.splitpga_.length;
-        let pga = b.options.splitpga_[test_];
-        let _color = getColor(pga);
-        b.object3d.material.color.set(_color);
-        b.object3d.material.needsUpdate = true;
-        b.setAltitude(pga * 1000);
-    });
-    if(bars.length > 0){
-        test_++;
-        if(isEndIdx <= test_){
-            test_ = 0;
+            resolutionWAV();
+            console.log('what');
         }
     }
+
+    workerList.push({id:i, w});
 }
+
+function objSize(obj) {
+    var size = 0,
+      key;
+    for (key in obj) {
+      if (obj.hasOwnProperty(key)) size++;
+    }
+    return size;
+};
+
+function sortObject(o){
+    var sorted = {},
+
+    key, a = [];
+    for (key in o) {
+        if (o.hasOwnProperty(key)) a.push(key);
+    }
+    a.sort(); 
+
+    for (key=0; key<a.length; key++) {
+        sorted[a[key]] = o[a[key]];
+    }
+    return sorted;
+}
+
+
+function getTinWorker() {
+    var tt;
+    workerList.some(el => {
+      if(el.id == currentWorker){
+        if(el.w){
+          tt = el.w;
+          return true;
+        }
+      }
+    });
+    
+    currentWorker++;
+    if(currentWorker >= workerCount){
+      currentWorker = 0;
+    }
+  
+    return tt;
+}
+
+function postWorker(data, start, end, id, timeAvgSlice){
+    getTinWorker().postMessage({what:"sliceProcess", data, start, end, id, timeAvgSlice});
+}
+
+
 
 let geometries = [];
 let mergedBars = null;
 //let zValues = [];
 let __data = [];
+let timeAvgSlice = 4;
+
 async function testTimeText2() {
     let df = await dfd.read_csv("http://localhost:5500/test/test_time_pgv.csv");
     let data = df.data.slice(0);
@@ -181,7 +175,30 @@ async function testTimeText2() {
     for (var member in df) delete df[member];
     df = null;
 
-    for (var i = 0; i < data.length; i+=20) {
+    let processingCnt = data.length / workerCount;
+    let namugi = data.length % workerCount;
+
+    for(var i=0; i<workerCount; i++){
+        if(namugi > 0){
+            if(i != workerCount-1){
+                let start = processingCnt * i;
+                let end = processingCnt * (i + 1);
+                postWorker(data.slice(start, end), start, end, i, timeAvgSlice);
+            }else if(i == workerCount-1){
+                let start = data.length - namugi;
+                let end = data.length;
+                postWorker(data.slice(start, end), start, end, i, timeAvgSlice);
+            }
+        }else{
+            let start = processingCnt * i;
+            let end = processingCnt * (i + 1);
+            postWorker(data.slice(start, end), start, end, i, timeAvgSlice);
+        }
+    }
+
+    data.length = 0;
+    return;
+    for (var i = 0; i < data.length; i+=2) {
         //if (i == 10000) break;
         let row = data[i];
         let name = row[0];
@@ -199,8 +216,26 @@ async function testTimeText2() {
                 if (splitpga[k] == '') continue;
                 splitpga_.push(splitpga[k]);
             }
+            let _tt = splitpga_.slice(0);
             
-            __data.push({lat, lon, splitpga_:splitpga_.slice(0)});
+            let timeTmpAvgList = [];
+            let timeAvgList = [];
+            for(var _t=1; _t<=_tt.length; _t++){
+                let t = Number(_tt[_t-1]);
+                timeTmpAvgList.push(t);
+                if(_t % timeAvgSlice == 0){
+                    let sum = 0;
+                    let avg = 0;
+                    for(var _t2=0; _t2<timeTmpAvgList.length; _t2++){
+                        sum += timeTmpAvgList[_t2];
+                    }
+                    avg = sum / timeTmpAvgList.length;
+                    timeAvgList.push(avg);
+                    timeTmpAvgList.length = 0;
+                }
+                
+            }
+            __data.push({lat, lon, splitpga_:timeAvgList});
             //console.log(i);
             splitpga_.length = 0;
             
@@ -223,14 +258,14 @@ async function testTimeText2() {
 function resolutionWAV(){
     const positionHelper = new THREE.Object3D();
     positionHelper.position.z = 1;
-    for (var i = 0; i < __data.length; i) {
+    for (var i = 0; i < __data.length; i++) {
         let __d = __data[i];
         let splitpga_ = __d.splitpga_;
-        let _color = getColor(splitpga_[0]);
+        
 
         let boxDepth = splitpga_[0] * 100;
-        boxDepth = boxDepth == 0 ? 1 : boxDepth;
-        const geometry = new THREE.BoxGeometry(3, 3, boxDepth);
+       // boxDepth = boxDepth == 0 ? 1 : boxDepth;
+        const geometry = new THREE.BoxGeometry(6, 3, boxDepth);
         var position = quake.threeLayer.coordinateToVector3([__d.lon, __d.lat]);
         positionHelper.position.y = position.y;
         positionHelper.position.x = position.x; 
@@ -239,14 +274,15 @@ function resolutionWAV(){
         positionHelper.updateWorldMatrix(true, false);
         geometry.applyMatrix4(positionHelper.matrixWorld);
 
-        const color = new THREE.Color(_color); 
-        const rgb = color.toArray().map(v => v * 255);
+        //let _color = __getColor(splitpga_[0]);
+        //const color = new THREE.Color(_color);
+        //const rgb = color.toArray().map(v => v * 255);
 
         const numVerts = geometry.getAttribute('position').count;
-        const itemSize = 3;  // r, g, b
+        const itemSize = 4;  // r, g, b
         const colors = new Uint8Array(itemSize * numVerts);
         colors.forEach((v, ndx) => {
-            colors[ndx] = rgb[ndx % 3];
+            colors[ndx] = 0;
         });
         const normalized = true;
         const colorAttrib = new THREE.BufferAttribute(colors, itemSize, normalized);
@@ -259,8 +295,6 @@ function resolutionWAV(){
         const mergedGeometry = BufferGeometryUtils.mergeBufferGeometries(geometries, false);
         const material = new THREE.MeshBasicMaterial({
             vertexColors: true,
-            transparent: true,
-            opacity:0.8
         });
             
         mergedBars = new THREE.Mesh(mergedGeometry, material);
@@ -270,11 +304,41 @@ function resolutionWAV(){
 
 let test_2 = 0;
 let isEndIdx2 = 0;
+let mz = [0,2,5,7,10,11,12,13,16,17,18,19];
+let psCnt = 24;
+
+function __getColor(p){
+    if(p >= 0 && p < 0.02){
+        //return {x:234,y:234,z:185,w:255};
+        return {x:0,y:0,z:0,w:0};
+    }else if(p >= 0.02 && p < 0.04){
+        return {x:255,y:254,z:177,w:50};
+        //return {x:0,y:0,z:0,w:0};
+    }else if(p >= 0.04 && p < 0.06){
+        return {x:254,y:251,z:0,w:50};
+    }else if(p >= 0.06 && p < 0.08){
+        return {x:254,y:186,z:0,w:50};
+    }else if(p >= 0.08 && p < 0.1){
+        return {x:254,y:114,z:0,w:50};
+    }else if(p >= 0.1 && p < 0.12){
+        return {x:252,y:48,z:1,w:50};
+    }else if(p >= 0.12 && p < 0.14){
+        return {x:236,y:0,z:0,w:50};
+    }else if(p >= 0.14 && p < 0.16){
+        return {x:169,y:0,z:2,w:50};
+    }else if(p >= 0.16 && p < 0.18){
+        return {x:101,y:0,z:0,w:50};
+    }else if(p >= 0.18 && p < 0.2){
+        return {x:32,y:0,z:0,w:50};
+    }else if(p >= 0.2){
+        return {x:32,y:0,z:0,w:50};
+    }
+    return {x:212,y:0,z:255,w:50};
+}
 function barAnim2(){
-    if(mergedBars != null){
-        isEndIdx2 = 12200;
+    if(mergedBars != null){ 
         let attr = mergedBars.geometry.attributes;
-        let psCnt = 24;
+        
         let nextIdx = 0;
         for(var i=0; i<attr.position.count; i++){
             
@@ -282,24 +346,35 @@ function barAnim2(){
                 nextIdx++;
             }
 
-            // let mz = [2,8,17,23,32,35,38,41,50,53,56,59];
-            let kk = i*3;
-            let kk2 = kk-1;
-            
-            if(kk2 % 2 == 0 || kk2 % 8 == 0 || kk2 % 17 == 0 || kk2 % 23 == 0 || kk2 % 32 == 0 || kk2 % 35 == 0 || kk2 % 38 == 0 || kk2 % 41 == 0 || kk2 % 50 == 0 ||
-                kk2 % 53 == 0 || kk2 % 56 == 0 || kk2 % 59 == 0){
- 
-                let v = __data[nextIdx].splitpga_[test_2];
-                let boxDepth = v * 100;
+            let p = __data[nextIdx].splitpga_[test_2];
+            isEndIdx2 = __data[nextIdx].splitpga_.length;
+            if(mz[0]+(nextIdx*24) == i || mz[1]+(nextIdx*24) == i || mz[2]+(nextIdx*24) == i || mz[3]+(nextIdx*24) == i  || 
+                mz[4]+(nextIdx*24) == i || mz[5]+(nextIdx*24) == i || mz[6]+(nextIdx*24) == i || mz[7]+(nextIdx*24) == i  || 
+                mz[8]+(nextIdx*24) == i || mz[9]+(nextIdx*24) == i || mz[10]+(nextIdx*24) == i || mz[11]+(nextIdx*24) == i){
+                let normalizedMultiple = 100;
+                let boxDepth = p * normalizedMultiple;
                 if(boxDepth == 0){
                     continue;
                 }
                 boxDepth = boxDepth == 0 ? 1 : boxDepth;
-
+                boxDepth = 20*Math.log2(boxDepth);
                 attr.position.setZ(i, boxDepth);//array[i] = boxDepth;
+                
             }
+             
+            // let normalizedMultiple = 100;
+            // let boxDepth = p * normalizedMultiple;
+            // if(boxDepth == 0){
+            //     continue;
+            // }
+            // boxDepth = boxDepth == 0 ? 1 : boxDepth;
+            // boxDepth = 20*Math.log2(boxDepth);
+            // attr.position.setZ(i, boxDepth);//array[i] = boxDepth;
+            let color = __getColor(p);
+            attr.color.setXYZW(i, color.x, color.y, color.z, color.w);
         }
         mergedBars.geometry.attributes.position.needsUpdate = true;
+        mergedBars.geometry.attributes.color.needsUpdate = true;
         //mergedBars.geometry.computeBoundingBox();
         //mergedBars.geometry.computeBoundingSphere();
 
@@ -313,211 +388,14 @@ function barAnim2(){
         test_2++;
         if(isEndIdx2 <= test_2){
             test_2 = 0;
+
+            for(var i=0; i<attr.position.count; i++){ 
+                let color = __getColor(0);
+                attr.position.setZ(i, 1);
+                attr.color.setXYZW(i, color.x, color.y, color.z, color.w);
+            } 
+            mergedBars.geometry.attributes.position.needsUpdate = true;
+            mergedBars.geometry.attributes.color.needsUpdate = true;
         }
     } 
-}
-
-
-async function testWAVText() {
-    fetch('/test/ztest.txt').then(res => res.text()).then(data => {
-        let sd = data.split(' ');
-        console.log(sd);
-    });
-
-    fetch('/test/ztest2.txt').then(res => res.text()).then(data => {
-        let sd = data.split(' ');
-        console.log(sd);
-    });
-
-    let pros = await fetch('/test/ph.csv');
-    let prosTxt = await pros.text();
-    let points = [];
-    Papa.parse(prosTxt, {
-        complete: function (results) {
-            let data = results.data;
-            for (var i = 0; i < data.length; i++) {
-                let row = data[i];
-                if (i == 0) { //헤더
-                    if (row[0] == 'name' && row[1] == 'lat' && row[2] == 'lon' && row[3] == 'pgv') {
-                    } else {
-                        alert("잘못된 형식입니다.\n헤더는 [name,lat,lon,pgv]로 구성되어야 합니다.");
-                        return;
-                    }
-                } else {
-                    let name = row[0];
-                    let lat = Number(row[1]);
-                    let lon = Number(row[2]);
-                    let pgv = Number(row[3]);
-                    if (lon && lat) {
-                        var point = new maptalks.Marker([lon, lat],
-                            {
-                                visible: true,
-                                editable: true,
-                                cursor: 'pointer',
-                                shadowBlur: 0,
-                                shadowColor: 'black',
-                                draggable: false,
-                                dragShadow: false, // display a shadow during dragging
-                                drawOnAxis: null,  // force dragging stick on a axis, can be: x, y
-                                symbol: {
-                                    'textFaceName': 'sans-serif',
-                                    'textName': 'MapTalks',
-                                    'textFill': '#34495e',
-                                    'textHorizontalAlignment': 'right',
-                                    'textSize': 40
-                                }
-                            });
-                        points.push(point);
-                    }
-                }
-
-            }
-        }
-    });
-
-    new maptalks.VectorLayer('vector', points).addTo(quake.map);
-}
-
-//var events = [];
-
-function onEvent(param) {
-    // events.push(param);
-    var content = '';
-    // for (var i = events.length - 1; i >= 0; i--) {
-    //     content += events[i].type + ' on ' +
-    //     events[i].coordinate.toArray().map(function (c) { return c.toFixed(5); }).join() +
-    //     '<br>';
-    // }
-    console.log(param.target._symbol.textName);
-    // document.getElementById('events').innerHTML = '<div>' + content + '</div>';
-    //return false to stop event propagation
-    return false;
-}
-
-var bars = [];
-const vertexShader = `
-    varying vec2 vUv;
-    void main()	{
-        vUv = uv;
-        gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0);
-    }
-    `;
-
-const fragmentShader = `
-    #if __VERSION__ == 100
-        #extension GL_OES_standard_derivatives : enable
-    #endif
-
-    varying vec2 vUv;
-    uniform float thickness;
-
-    float edgeFactor(vec2 p){
-        vec2 grid = abs(fract(p - 0.5) - 0.5) / fwidth(p) / thickness;
-        return min(grid.x, grid.y);
-    }
-
-    void main() {
-
-        float a = edgeFactor(vUv);
-
-        vec3 c = mix(vec3(1), vec3(0), a);
-
-        gl_FragColor = vec4(c, 1.0);
-    }
-    `;
-
-
-const material = new THREE.ShaderMaterial({
-    uniforms: {
-        thickness: {
-            value: 1.5
-        }
-    },
-    vertexShader,
-    fragmentShader
-});
-
-function addBars(scene) {
-    const minLng = 128.755734,
-        maxLng = 129.314373,
-        minLat = 34.978977,
-        maxLat = 35.396265;
-    const lnglats = [];
-    const NUM = 100;
-    const rows = 99,
-        cols = 99;
-    const app = (window.app = new App(NUM, NUM));
-    for (let i = 0; i <= cols; i++) {
-        const lng = ((maxLng - minLng) / cols) * i + minLng;
-        for (let j = 0; j <= rows; j++) {
-            const lat = ((maxLat - minLat) / rows) * j + minLat;
-            const bar = quake.threeLayer.toBar([lng, lat], { height: 2000, radius: 260, radialSegments: 4, interactive: false }, material);
-            bar.getObject3d().rotation.z = Math.PI / 4;
-            bars.push(bar);
-            app.staggerArray.push({
-                altitude: 0
-            });
-        }
-    }
-    quake.threeLayer.addMesh(bars);
-    app.init();
-    animation();
-}
-class App {
-    constructor(rows, cols) {
-        this.rows = rows;
-        this.cols = cols;
-
-        this.randFrom = ["first", "last", "center"];
-
-        this.easing = [
-            "linear",
-            "easeInOutQuad",
-            "easeInOutCubic",
-            "easeInOutQuart",
-            "easeInOutQuint",
-            "easeInOutSine",
-            "easeInOutExpo",
-            "easeInOutCirc",
-            "easeInOutBack",
-            "cubicBezier(.5, .05, .1, .3)",
-            "spring(1, 80, 10, 0)",
-            "steps(10)"
-        ];
-        this.staggerArray = [];
-    }
-
-    init() {
-        this.beginAnimationLoop();
-    }
-    beginAnimationLoop() {
-        // random from array
-        let randFrom = this.randFrom[
-            Math.floor(Math.random() * this.randFrom.length)
-        ];
-        let easingString = this.easing[
-            Math.floor(Math.random() * this.easing.length)
-        ];
-
-        anime({
-            targets: this.staggerArray,
-            altitude: [
-                { value: 10000 * 0.25, duration: 500 },
-                { value: -(0 * 0.25), duration: 2000 }
-            ],
-            delay: anime.stagger(200, {
-                grid: [this.rows, this.cols],
-                from: randFrom
-            }),
-            easing: easingString,
-            complete: (anim) => {
-                this.beginAnimationLoop();
-            },
-            update: () => {
-                for (let i = 0, len = bars.length; i < len; i++) {
-                    bars[i].setAltitude(this.staggerArray[i].altitude);
-                }
-            }
-        });
-    }
 }
