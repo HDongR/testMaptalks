@@ -68,6 +68,7 @@ quake.setThreeLayer = function () {
         var light = new THREE.DirectionalLight(0xffffff);
         light.position.set(0, -10, 10).normalize();
         scene.add(light);
+        console.time('performance');
         testTimeText2();
         
     }
@@ -82,7 +83,7 @@ quake.setThreeLayer = function () {
 }
 
 var hardwareConcurrency = typeof window !== 'undefined' ? window.navigator.hardwareConcurrency || 4 : 0;
-var workerCount = Math.max(Math.floor(hardwareConcurrency / 2), 1) + 1;
+var workerCount = 4;//Math.max(Math.floor(hardwareConcurrency / 2), 1);
 var currentWorker = 0;
 var workerList = [];
 
@@ -93,11 +94,16 @@ for(var i=0; i<workerCount; i++){
         receivedData[e.data.id] = e.data.resultData;
 
         if(objSize(receivedData) == workerCount){
-            let sortedO = sortObject(receivedData);
-            for (k in sortedO){
-                let zxdf = sortedO[k];
-                __data.push(...zxdf);
-            }
+            // let sortedO = sortObject(receivedData);
+            // for (k in sortedO){
+            //     let zxdf = sortedO[k];
+            //     __data.push(...zxdf);
+            // }
+            let l = Object.values(receivedData);
+            l.forEach(_l => {
+                __data.push(..._l);
+            });
+            //__data.push(...receivedData);
             resolutionWAV();
             console.log('what');
         }
@@ -175,7 +181,7 @@ async function testTimeText2() {
     for (var member in df) delete df[member];
     df = null;
 
-    let processingCnt = data.length / workerCount;
+    let processingCnt = Math.floor(data.length / workerCount);
     let namugi = data.length % workerCount;
 
     for(var i=0; i<workerCount; i++){
@@ -274,15 +280,15 @@ function resolutionWAV(){
         positionHelper.updateWorldMatrix(true, false);
         geometry.applyMatrix4(positionHelper.matrixWorld);
 
-        //let _color = __getColor(splitpga_[0]);
-        //const color = new THREE.Color(_color);
-        //const rgb = color.toArray().map(v => v * 255);
+        let _color = __getColor(splitpga_[0]);
+        const color = new THREE.Color(_color);
+        const rgb = color.toArray().map(v => v * 255);
 
         const numVerts = geometry.getAttribute('position').count;
         const itemSize = 4;  // r, g, b
         const colors = new Uint8Array(itemSize * numVerts);
         colors.forEach((v, ndx) => {
-            colors[ndx] = 0;
+            colors[ndx] = rgb[ndx%4];
         });
         const normalized = true;
         const colorAttrib = new THREE.BufferAttribute(colors, itemSize, normalized);
@@ -300,6 +306,8 @@ function resolutionWAV(){
         mergedBars = new THREE.Mesh(mergedGeometry, material);
         quake.threeLayer.addMesh(mergedBars);
     }
+
+    console.timeEnd('performance'); 
 }
 
 let test_2 = 0;
@@ -309,34 +317,35 @@ let psCnt = 24;
 
 function __getColor(p){
     if(p >= 0 && p < 0.02){
-        //return {x:234,y:234,z:185,w:255};
-        return {x:0,y:0,z:0,w:0};
+        return {x:234,y:234,z:185,w:255};
+        //return {x:0,y:0,z:0,w:0};
     }else if(p >= 0.02 && p < 0.04){
-        return {x:255,y:254,z:177,w:50};
+        return {x:255,y:254,z:177,w:255};
         //return {x:0,y:0,z:0,w:0};
     }else if(p >= 0.04 && p < 0.06){
-        return {x:254,y:251,z:0,w:50};
+        return {x:254,y:251,z:0,w:255};
     }else if(p >= 0.06 && p < 0.08){
-        return {x:254,y:186,z:0,w:50};
+        return {x:254,y:186,z:0,w:255};
     }else if(p >= 0.08 && p < 0.1){
-        return {x:254,y:114,z:0,w:50};
+        return {x:254,y:114,z:0,w:255};
     }else if(p >= 0.1 && p < 0.12){
-        return {x:252,y:48,z:1,w:50};
+        return {x:252,y:48,z:1,w:255};
     }else if(p >= 0.12 && p < 0.14){
-        return {x:236,y:0,z:0,w:50};
+        return {x:236,y:0,z:0,w:255};
     }else if(p >= 0.14 && p < 0.16){
-        return {x:169,y:0,z:2,w:50};
+        return {x:169,y:0,z:2,w:255};
     }else if(p >= 0.16 && p < 0.18){
-        return {x:101,y:0,z:0,w:50};
+        return {x:101,y:0,z:0,w:255};
     }else if(p >= 0.18 && p < 0.2){
-        return {x:32,y:0,z:0,w:50};
+        return {x:32,y:0,z:0,w:255};
     }else if(p >= 0.2){
-        return {x:32,y:0,z:0,w:50};
+        return {x:32,y:0,z:0,w:255};
     }
-    return {x:212,y:0,z:255,w:50};
+    return {x:212,y:0,z:255,w:255};
 }
 function barAnim2(){
-    if(mergedBars != null){ 
+    if(mergedBars != null){
+        return;
         let attr = mergedBars.geometry.attributes;
         
         let nextIdx = 0;

@@ -5,8 +5,14 @@ onmessage = function (e) {
     let id = e.data.id;
     let timeAvgSlice = e.data.timeAvgSlice;
     let resultData = [];
+    
+    console.log('thread id : ', id, 'start');
     for (var i = 0; i < data.length; i+=2) {
         //if (i == 10000) break;
+        if(!data[i]){
+            continue;
+        }
+            
         let row = data[i];
         let name = row[0];
         let lat = Number(row[1]);
@@ -59,6 +65,6 @@ onmessage = function (e) {
         splitpga = null;
         data[i] = null;
     }
-
+    console.log('thread id : ', id, 'end');
     this.postMessage({id,resultData});
 };
