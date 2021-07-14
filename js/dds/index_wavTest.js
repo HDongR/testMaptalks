@@ -345,7 +345,6 @@ function __getColor(p){
 }
 function barAnim2(){
     if(mergedBars != null){
-        return;
         let attr = mergedBars.geometry.attributes;
         
         let nextIdx = 0;
