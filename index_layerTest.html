@@ -46,7 +46,7 @@
             
         </div>
         <div id="coordinate"><span style="margin-left: 100px;" id="resultHeight"></span>
-            <button style="margin-left: 10px;" id="loadWAV">start</button>
+            <button style="margin-left: 10px;" id="loadTerrain" onclick="quake.loadTerrain();">start</button>
         </div>
         <!-- <canvas id="c" width="1024" height="700"></div> -->
     </body>
@@ -54,5 +54,14 @@
     <script type="text/javascript" src="/js/dds/index_layerTest.js"></script>
     <script>quake.viewMap();</script>
     <!-- <script type="module" src="js/test.js"></script> -->
-
+    <script type="module">
+        import {Workbox} from 'https://storage.googleapis.com/workbox-cdn/releases/6.1.5/workbox-window.prod.mjs';
+        
+        if ('serviceWorker' in navigator) {
+          const wb = new Workbox('/preLoading-sw.js');
+          wb.register();
+          //let prms = wb.messageSW({what: 'TRLD'});
+          //prms.then(pr=>{console.log(pr);});
+        }
+    </script>
 </html>

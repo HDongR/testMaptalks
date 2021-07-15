@@ -11,6 +11,7 @@ quake.viewMap = function () {
     quake.setThreeLayer('line');
     quake.setThreeLayer('polygon');
     quake.setThreeLayer('marker');
+    quake.setThreeLayer('terrain');
 
     quake.addPointEvent();
     quake.sortLayers();
@@ -67,6 +68,8 @@ quake.setThreeLayer = function (id) {
             loadPolygon();
         }else if(id == 'marker'){
             loadPoint();
+        }else if(id == 'terrain'){
+            
         }
     }
 
@@ -85,7 +88,7 @@ quake.sortLayers = function () {
     //         sortLayers.push(l);
     //     }
     // });
-    sortLayers.push(quake.threeLayerList[1], quake.threeLayerList[0], quake.threeLayerList[2]);
+    sortLayers.push(quake.threeLayerList[1], quake.threeLayerList[0], quake.threeLayerList[2], quake.threeLayerList[3]);
     quake.map.sortLayers(sortLayers);   
 }
 
@@ -210,7 +213,7 @@ function loadPoint() {
              
         points = lnglats.map(lnglat => {
             const material = createMateria();
-            const point = quake.threeLayerList[2].toPoint(lnglat.coordinate, { height: 100 * Math.random(), properties:lnglat.properties }, material);
+            const point = quake.threeLayerList[2].toPoint(lnglat.coordinate, { height: 100, properties:lnglat.properties }, material);
             for(var i=0; i<point.object3d.geometry.attributes.position.count; i++){
                 //point.object3d.geometry.attributes.position.setZ(i, 0.1);
             } 
@@ -680,4 +683,118 @@ quake.closeInfoWindow = function(){
     if (quake.infoWindow != null) {
         quake.infoWindow.remove();
     }
+}
+
+const textureLoader = new THREE.TextureLoader();
+let terrainList = [];
+let isShowTerrain = false;
+quake.loadTerrain = async function(){
+    isShowTerrain = !isShowTerrain;
+
+    if(isShowTerrain){ //show
+        if(terrainList.length > 0 ){
+            terrainList.forEach(t=>{t.visible = true;});
+        }else{
+            quake.loadTerrainNetwork();
+        }
+    }else{ //hide
+        if(terrainList.length > 0 ){
+            terrainList.forEach(t=>{t.visible = false;});
+        }
+
+    }
+    
+}
+
+quake.loadTerrainNetwork = async function(){
+    let zResol = 80;
+    var coordMin = new maptalks.Coordinate(128.755734, 34.978977);//부산
+    var coordMax = new maptalks.Coordinate(129.314373, 35.396265);//부산
+    //var coordMin = new maptalks.Coordinate(129.148876, 35.151681);
+    //var coordMax = new maptalks.Coordinate(129.155753, 35.156076);
+    //var proj = proj4(proj4.defs('EPSG:4326'), proj4.defs('EPSG:3857'));
+    level = 10;
+    let unit = 360 / (Math.pow(2, level) * 10);
+    let minIdx = Math.floor((coordMin.x+180)/unit);
+    let minIdy = Math.floor((coordMin.y+90)/unit);
+    let maxIdx = Math.floor((coordMax.x+180)/unit);
+    let maxIdy = Math.floor((coordMax.y+90)/unit);
+    //console.log(minIdx, minIdy, maxIdx, maxIdy);
+    //console.log(tileGrid.zoom, coordMin, coordMax);
+
+    var idxIdyList = Array.from(Array((maxIdx-minIdx+1)*(maxIdy-minIdy+1)), () => new Array(2));
+    var index = 0;
+    for (var i=minIdx ; i<=maxIdx ; i++) {
+      for (var j=minIdy ; j<=maxIdy; j++) {
+        idxIdyList[index][0] = i+"";
+        idxIdyList[index][1] = j+"";
+        index++;
+      }
+    }     
+
+    for (var i=0 ; i<idxIdyList.length ; i++) {
+      const IDX = idxIdyList[i][0];
+      const IDY = idxIdyList[i][1];
+      const layer = "dem";
+      let address = "http://xdworld.vworld.kr:8080/XDServer/requestLayerNode?APIKey=3529523D-2DBA-36B8-98F5-357E880AC0EE&Layer=" + layer + "&Level=" + level + "&IDX=" + IDX + "&IDY=" + IDY;
+      
+      fetch(address).then(r=>{
+        const size = r.headers.get("content-length");
+        if(Number(size) >= 16900){
+          r.arrayBuffer().then(function(buffer) {
+            //var byteArray = new Uint8Array(buffer);
+            p = new Parser(buffer);
+
+            let x = unit * (IDX - (Math.pow(2, level-1)*10));
+            let y = unit * (IDY - (Math.pow(2, level-2)*10));
+            let pdata = [];
+            let sData = null;
+            let eData = null;
+            for(var yy=64; yy>=0; yy--){ 
+              for(var xx=0; xx<65; xx++){
+                let xDegree = x+(unit/64)*xx;
+                let yDegree = y+(unit/64)*yy;
+                let height = p.getFloat4();
+                pdata.push([xDegree, yDegree, height]);
+                
+                if(yy == 0 && xx == 64){
+                  eData = [xDegree, yDegree];
+                }else if(yy == 64 && xx == 0){
+                  sData = [xDegree, yDegree];
+                }
+              }
+            }
+            var geometry = new THREE.PlaneGeometry(1, 1, 64, 64);
+
+            /*for (var i = 0, l = geometry.vertices.length; i < l; i++) {
+              
+              const z = pdata[i][2]/zResol;//.threeLayer.distanceToVector3(pdata[i][2], pdata[i][2]).x;
+              const v = gisObj.threeLayer.coordinateToVector3([pdata[i][0],pdata[i][1]], z);
+              geometry.vertices[i].x = v.x;
+              geometry.vertices[i].y = v.y;
+              geometry.vertices[i].z = v.z;
+            }*/
+            for (var i = 0, l = geometry.attributes.position.count; i < l; i++) {
+                const z = pdata[i][2]/zResol;//.threeLayer.distanceToVector3(pdata[i][2], pdata[i][2]).x;
+                const v = quake.threeLayerList[3].coordinateToVector3([pdata[i][0],pdata[i][1]], z);
+                geometry.attributes.position.setXYZ(i, v.x, v.y, v.z);
+            }
+          
+            var material = new THREE.MeshBasicMaterial({/*color: 'hsl(0,100%,50%)',*/});
+            material.opacity = 1;
+            material.wireframe = false;
+            var address = "http://xdworld.vworld.kr:8080/XDServer/requestLayerNode?APIKey=3529523D-2DBA-36B8-98F5-357E880AC0EE&Layer=" + "tile" + "&Level=" + level + "&IDX=" + IDX + "&IDY=" + IDY;
+            textureLoader.load(address, function(tx){
+              material.map = tx;
+              material.needsUpdate = true;
+            });
+            
+            var plane = new THREE.Mesh(geometry, material);   
+            quake.threeLayerList[3].addMesh(plane);
+            plane.custom2DExtent = new maptalks.Extent(sData[0], sData[1], eData[0], eData[1]);
+            terrainList.push(plane);
+          });//arraybuffer
+        }//16900
+      }); //fetch
+    }//for
 }
