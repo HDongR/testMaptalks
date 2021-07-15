@@ -62,38 +62,38 @@
         threeLayer.addTo(map);
 
 
-        var material = new THREE.MeshPhongMaterial({ color: 0x00ffff, transparent: true });
-        var highlightmaterial = new THREE.MeshBasicMaterial({ color: 'yellow', transparent: true });
-        var lines = [], selectMesh = [];
-        let polygons = [];
+var material = new THREE.MeshPhongMaterial({ color: 0x00ffff, transparent: true });
+var highlightmaterial = new THREE.MeshBasicMaterial({ color: 'yellow', transparent: true });
+var lines = [], selectMesh = [];
+let polygons = [];
 
-        function load() {
-            fetch('/test/polygonTest.geojson').then(function (res) {
-                return res.json();
-            }).then(function (geojson) {
-                geojson.features.forEach(feature => {
-                    const geometry = feature.geometry;
-                    const type = feature.geometry.type;
-                    if (['Polygon', 'MultiPolygon'].includes(type)) {
-                        const height = 0.1;
-                        const properties = feature.properties;
-                        properties.height = height;
-                        const polygon = maptalks.GeoJSON.toGeometry(feature);
-                        polygon.setProperties(properties);
-                        polygons.push(polygon);
-                    }
+function load() {
+    fetch('/test/polygonTest.geojson').then(function (res) {
+        return res.json();
+    }).then(function (geojson) {
+        geojson.features.forEach(feature => {
+            const geometry = feature.geometry;
+            const type = feature.geometry.type;
+            if (['Polygon', 'MultiPolygon'].includes(type)) {
+                const height = 0.1;
+                const properties = feature.properties;
+                properties.height = height;
+                const polygon = maptalks.GeoJSON.toGeometry(feature);
+                polygon.setProperties(properties);
+                polygons.push(polygon);
+            }
 
-                });
-                if (polygons.length > 0) {
-                    var mesh = threeLayer.toExtrudePolygons(polygons.slice(0, Infinity), { topColor: '#fff', interactive: false }, material);
-                    threeLayer.addMesh(mesh);
-                }
-
-
-                initGui();
-                animation();
-            });
+        });
+        if (polygons.length > 0) {
+            var mesh = threeLayer.toExtrudePolygons(polygons.slice(0, Infinity), { topColor: '#fff', interactive: false }, material);
+            threeLayer.addMesh(mesh);
         }
+
+
+        initGui();
+        animation();
+    });
+}
 
         function animation() {
             // layer animation support Skipping frames

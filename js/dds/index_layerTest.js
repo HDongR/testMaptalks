@@ -2,22 +2,22 @@ var quake = {
     map: {},
     threeLayerList: [],
 };
+var stats = null;
+var infoWindow;
+quake.infoWindow = infoWindow;
 
 quake.viewMap = function () {
     quake.setBaseLayer();
-    quake.setThreeLayer('1');
-    quake.setThreeLayer('2');
-    quake.setStaticalBuilding();
-    animation();
-}
+    quake.setThreeLayer('line');
+    quake.setThreeLayer('polygon');
+    quake.setThreeLayer('marker');
 
-function animation() {
-    // layer animation support Skipping frames
-    quake.threeLayerList[0]._needsUpdate = !quake.threeLayerList[0]._needsUpdate;
-    if (quake.threeLayerList[0]._needsUpdate) {
-        quake.threeLayerList[0].renderScene();
-    }
-    requestAnimationFrame(animation);
+    quake.addPointEvent();
+    quake.sortLayers();
+
+    animation();
+    
+    initGui();
 }
 
 quake.setBaseLayer = function () {
@@ -53,9 +53,21 @@ quake.setThreeLayer = function (id) {
     });
 
     threeLayer.prepareToDraw = function (gl, scene, camera) {
+        stats = new Stats();
+        stats.domElement.style.zIndex = 100;
+        document.getElementById('map').appendChild(stats.domElement);
+
         var light = new THREE.DirectionalLight(0xffffff);
         light.position.set(0, -10, 10).normalize();
         scene.add(light);
+
+        if(id == 'line'){
+            loadLine();
+        }else if(id == 'polygon'){
+            loadPolygon();
+        }else if(id == 'marker'){
+            loadPoint();
+        }
     }
 
     threeLayer.addTo(quake.map);
@@ -65,165 +77,607 @@ quake.setThreeLayer = function (id) {
 
     //update();
 }
- 
-var buildingMeshs = [];
 
-quake.setStaticalBuilding = async function () {
-    let url = 'http://220.123.241.100:8181/geoserver/dds/ows?service=WFS&version=1.0.0&request=GetFeature&typeName=dds%3Atb_building_g2&outputFormat=application%2Fjson';
-    let buildingSize = 80805888;
-    quake.startLoadingBar();
+quake.sortLayers = function () {
+    let sortLayers = []; 
+    // quake.map.layer.forEach(l=>{
+    //     if(l.type == 'ThreeLayer'){
+    //         sortLayers.push(l);
+    //     }
+    // });
+    sortLayers.push(quake.threeLayerList[1], quake.threeLayerList[0], quake.threeLayerList[2]);
+    quake.map.sortLayers(sortLayers);   
+}
 
-    let response = await fetch(url);
-    const reader = response.body.getReader();
-    const contentLength = buildingSize;//+response.headers.get('Content-Length');
 
-    let receivedLength = 0; // received that many bytes at the moment
-    let chunks = []; // array of received binary chunks (comprises the body)
-    while (true) {
-        const { done, value } = await reader.read();
-
-        if (done) {
-            break;
+function animation() {
+    // layer animation support Skipping frames
+    quake.threeLayerList.forEach(tl=>{
+        tl._needsUpdate = !tl._needsUpdate;
+        if (tl._needsUpdate) {
+            tl.renderScene();
         }
-
-        chunks.push(value);
-        receivedLength += value.length;
-        var tic = receivedLength / contentLength * 100;
-        tic = Math.round(tic * 100) / 100;
-        if (tic < 90) quake.progressPBar(tic); else quake.progressBarContents('데이터 취합중..');
+    });
+    if(stats){
+        stats.update();
     }
+    requestAnimationFrame(animation);
+}
 
-    // Step 4: concatenate chunks into single Uint8Array
-    let chunksAll = new Uint8Array(receivedLength); // (4.1)
-    let position = 0;
-    for (let chunk of chunks) {
-        chunksAll.set(chunk, position); // (4.2)
-        position += chunk.length;
-    }
 
-    // Step 5: decode into a string
-    let result = new TextDecoder("utf-8").decode(chunksAll);
+var lineMaterial = new THREE.LineBasicMaterial({color: 0x00ffff,/*opacity: 0.8,*/transparent: true});
+var lines = [];
 
-    // We're done!
-    let commits = JSON.parse(result);
+function loadLine() {
+    fetch('/test/lineTest.geojson').then(function (res) {
+        return res.json();
+    }).then(function (geojson) {
+        geojson = JSON.parse(geojson.geojson);
 
-    let polygons = [];
+            
+        var lineStrings = maptalks.GeoJSON.toGeometry(geojson);
+        var timer = 'generate line time';
+        console.time(timer);
+        const mesh = quake.threeLayerList[0].toLines(lineStrings, { interactive: false}, lineMaterial);
+        lines.push(mesh);
+        quake.threeLayerList[0].addMesh(mesh);
+    });
+}
 
-    let positionHelper = new THREE.Object3D();
-    positionHelper.position.z = 1;
- 
-    console.time("testFunction");
-    for (var i = 0; i < commits.features.length; i++) {
-        //if(polygons.length > 100000) break;
-        let feature = commits.features[i];
-        const geometry = feature.geometry;
-        const type = feature.geometry.type;
-        if (['Polygon', 'MultiPolygon'].includes(type)) {
-            const height = feature.height || feature.properties.height || 20;
-            if (height < 400) { //error data 400m높이 건물 이하로
+var polygonMaterial = new THREE.MeshPhongMaterial({ color: 0x00ffff, transparent: true });  
+
+let polygonMeshs = [];
+
+function loadPolygon() {
+    fetch('/test/polygonTest.geojson').then(function (res) {
+        return res.json();
+    }).then(function (geojson) {
+        let polygons = [];
+
+        geojson.features.forEach(feature => {
+            const geometry = feature.geometry;
+            const type = feature.geometry.type;
+            if (['Polygon', 'MultiPolygon'].includes(type)) {
+                const height = 0.1;
                 const properties = feature.properties;
                 properties.height = height;
                 const polygon = maptalks.GeoJSON.toGeometry(feature);
-                
-                // let center = polygon.getCenter();
-                // const vv = quake.threeLayerList[0].coordinateToVector3(center);
-                // rayPos.x = vv.x;
-                // rayPos.y = vv.y;
-                // ray.set(rayPos, rayDir);
- 
-                // var containGeo = null;
-                // for (var j = 0; j < geometryList.length; j++) {
-                //     var containGeos = geometryList[j];
-                //     if (containGeos.custom2DExtent.contains(center)) {
-                //         containGeo = containGeos;
-                //     }
-                // }
-                // if (containGeo) {
-                //     let intersect = ray.intersectObject(containGeo);
-                //     if (intersect.length > 0) {
-                //         polygon.custom_altitude = intersect[0].point.z;
-                //     }
-                // }
-
-
                 polygon.setProperties(properties);
                 polygons.push(polygon);
             }
-        }
-    }
 
-    if (polygons.length > 0) {
-        var buildingColor = '#BDBDBD';
-        var buildingMaterial = new THREE.MeshPhongMaterial({ color: buildingColor, transparent: true, opacity: 1 });
-        var mesh = quake.threeLayerList[0].toExtrudePolygons(polygons.slice(0, Infinity), { topColor: '#fff', interactive: false }, buildingMaterial);
-        quake.threeLayerList[0].addMesh(mesh);
-        polygons.length = 0;
-    }
-
-    quake.threeLayerList[0].renderScene();
-    quake.endLoadingBar();
-}
-
-quake.startLoadingBar = function () {
-    //화면의 높이와 너비를 구한다.
-    var maskHeight = $(document).height();
-    var maskWidth = window.document.body.clientWidth;
-
-    var mask = "<div id='mask' style='position:absolute; z-index:9000; background-color:#000000; display:none; left:0; top:0;'></div>";
-    var loadingImg = '';
-
-    loadingImg += "<div id='loadingImg' style='width:500px; position:absolute; left:50%; top:40%; display:none; z-index:10000;align:center;font-weight:bold;'>";
-    /* loadingImg += "<img src='/dds/resources/images/common/loading_01.png'/>";*/
-    loadingImg += "<div id='pbar'><div class='progress-label' style='text-align:center;top: 4px;font-weight: bold;text-shadow: 1px 1px 0 #fff;'>Loading...</div></div>";
-    loadingImg += "</div>";
-
-    //화면에 레이어 추가
-    $('body')
-        .append(mask)
-        .append(loadingImg)
-
-    //마스크의 높이와 너비를 화면 것으로 만들어 전체 화면을 채운다.
-    $('#mask').css({
-        'width': maskWidth
-        , 'height': maskHeight
-        , 'opacity': '0.3'
-    });
-
-    //마스크 표시
-    $('#mask').show();
-
-    //로딩중 이미지 표시
-    $('#loadingImg').show();
-
-    var progressbar = $("#pbar"),
-        progressLabel = $(".progress-label");
-
-    progressbar.progressbar({
-        value: false,
-        change: function () {
-            progressLabel.text(progressbar.progressbar("value") + "%");
-        },
-        complete: function () {
-            setTimeout(endLoadingBar, 0);
+        });
+        if (polygons.length > 0) {
+            var mesh = quake.threeLayerList[1].toExtrudePolygons(polygons.slice(0, Infinity), { topColor: '#fff', interactive: false }, polygonMaterial);
+            quake.threeLayerList[1].addMesh(mesh);
+            polygonMeshs.push(mesh);
+            polygons.length = 0;
         }
     });
 }
 
-quake.progressPBar = function (pval) {
-    var progressbar = $("#pbar");
-    var val = progressbar.progressbar("value") || 0;
-
-    progressbar.progressbar("value", pval);
+function createMateria(fillStyle) {
+    const idx = Math.floor(Math.random() * 3);
+    return new THREE.PointsMaterial({
+        // size: 10,
+        sizeAttenuation: false,
+        color: fillStyle,
+        // alphaTest: 0.5,
+        // vertexColors: THREE.VertexColors,
+        //  transparent: true
+        // color: 0xffffff,
+        size: 25,
+        transparent: true, //使材质透明
+        blending: THREE.AdditiveBlending,
+        depthTest: true, //深度测试关闭，不消去场景的不可见面
+        depthWrite: false,
+        map: new THREE.TextureLoader().load('/test/selectFnIcon' + (idx+1) + '.png')
+        //刚刚创建的粒子贴图就在这里用上
+    });
 }
 
-quake.progressBarContents = function (c) {
-    var progressbar = $("#pbar"),
-        progressLabel = $(".progress-label");
-    progressbar.progressbar("value", 99.9);
-    progressLabel.text(c);
+let markerList = [];
+function loadPoint() {
+    fetch('/test/pointTest.geojson').then((function (res) {
+        return res.json();
+    })).then(function (json) {
+        let seq = 261;
+
+        let dataInfo = json.dataInfo;
+        let dataList = json.dataList;
+
+        var lon;
+        var lat;
+        var addr;
+        $.each(dataList, function(idx, obj){
+        	//console.log(obj);
+            if(obj.map_opt == "LON"){
+                lon = obj.data_field_nm;//x?
+            }else if(obj.map_opt == "LAT"){
+                lat = obj.data_field_nm;//x?
+            }else if(obj.map_opt == "ADDR"){
+                addr = obj.data_field_nm;//x?
+            }
+        });
+
+        const lnglats = [];
+        dataInfo.forEach(di=>{
+            di.seq = seq;
+            di.lon = di.LNG;
+            di.lat = di.LAT;
+            lnglats.push({coordinate:[di.LNG, di.LAT], properties:di});
+        });
+             
+        points = lnglats.map(lnglat => {
+            const material = createMateria();
+            const point = quake.threeLayerList[2].toPoint(lnglat.coordinate, { height: 100 * Math.random(), properties:lnglat.properties }, material);
+            for(var i=0; i<point.object3d.geometry.attributes.position.count; i++){
+                //point.object3d.geometry.attributes.position.setZ(i, 0.1);
+            } 
+            //infowindow test
+            
+            point.setInfoWindow(//options
+                {
+                    containerClass: 'maptalks-msgBox',
+    autoPan: false,
+    autoCloseOn: null,
+    autoOpenOn: 'click',
+    width: 0,
+    height: 0,
+    minHeight: 0,
+    custom: true,
+    title: '',
+    content: '',
+    animation: 'fade',
+    showTimeout: 200
+                }
+            );
+            //event test
+            ['click'].forEach(function (eventType) {
+                point.on(eventType, async function (e) {
+                    console.log(e.type, e);
+                    let data = e.target.options.properties;
+                    if (e.type === 'click' && data) {
+                        const value = data.value;
+                        quake.infoWindow = this.getInfoWindow();
+                        let options = await getContents(point);
+
+                        quake.infoWindow.setContent(options.content);
+                        if (quake.infoWindow && (!quake.infoWindow._owner)) {
+                            quake.infoWindow.addTo(this).show({x:e.target.options.coordinate[0], y:e.target.options.coordinate[1]});
+                        }
+                        //this.openInfoWindow(e.coordinate);
+                    }
+                });
+            });
+            return point;
+
+        });
+        quake.threeLayerList[2].addMesh(points); 
+    });
 }
 
-quake.endLoadingBar = function () {
-    $('#mask, #loadingImg').hide();
-    $('#mask, #loadingImg').remove();
+quake.addPointEvent = function(){
+    //quake.map.on('click', function(e){
+        //quake.addPointIdentify(e);
+    //});
+}
+
+async function getContents(g){
+    let markerTitle = '';
+    let containerHeight = 'height:237px;';
+    let containerHeight2 = 'height:188px;';
+    let marginTop = 'top:-30px;';
+    if(g.options.layer._id == 'quakeHistoryMarker'){  //지진 목록 마커이벤트 제목
+        if(g.options.properties.fctp == '2'){
+            markerTitle = '국외지진정보';
+        }else if(g.options.properties.fctp == '3'){
+            markerTitle = '국내지진정보';
+        }else if(g.options.properties.fctp == '5'){
+            markerTitle = '국내지진정보(재통보)';
+        }else if(g.options.properties.fctp == '11'){
+            markerTitle = '국내지진조기경보';
+        }else if(g.options.properties.fctp == '12'){
+            markerTitle = '국외지진조기경보';
+        }else if(g.options.properties.fctp == '13'){
+            markerTitle = '조기경보정밀분석';
+        }else if(g.options.properties.fctp == '14'){
+            markerTitle = '지진속보(조기분석)';
+        }
+        containerHeight = '';
+        containerHeight2 = '';
+        marginTop = 'top:-60px;';
+    }else{//gis기능이벤트 제목
+        markerTitle = g.options.properties.TITLE;
+        containerHeight = 'height:237px;';
+        containerHeight2 = 'height:188px;';
+        marginTop = '';
+    }
+    var content = 
+        '<div class="map_info_area mia_type1" style="position:absolute;width:460px;' + containerHeight + 'z-index:1000;' + marginTop + '">' +
+        //'<h3><em>' + g.properties.name + '</em><a href="#;" class="closebtn" onclick="flood.closeInfoWindow()"><i class="fal fa-times"></i></a></h3> '+
+        '<h3 style="height:45px;"><em>' + markerTitle + '</em><a href="#;" class="closebtn" onclick="quake.closeInfoWindow()"><i class="fal fa-times"></i></a></h3> '+
+        '<div class="mia_con alignCenter" style="background-color: #fff;' + containerHeight2 + 'overflow-y:scroll;">' +
+          '<table class="basic_tbl">'+
+                  '<colgroup>'+
+                      '<col style="width:37%"/>'+
+                      '<col style="width:63%"/>'+
+                  '</colgroup>'+
+                  '<tbody>';
+    if(g.options.layer._id == 'quakeHistoryMarker'){ //지진 목록 마커이벤트
+        let tmeqk = g.options.properties.tmeqk;//진앙시
+        let t_year = tmeqk.substr(0,4);
+        let t_month = tmeqk.substr(4,2);
+        let t_date = tmeqk.substr(6,2);
+        let t_hour = tmeqk.substr(8,2);
+        let t_minute = tmeqk.substr(10,2);
+        let t_second = tmeqk.substr(12,2);
+        let t_time = t_year + '/' + t_month + '/' + t_date + ' ' + t_hour + ':' + t_minute + ':' + t_second;
+        
+        let tmfc = g.options.properties.tmfc;//발표시각
+        let tf_year = tmfc.substr(0,4);
+        let tf_month = tmfc.substr(4,2);
+        let tf_date = tmfc.substr(6,2);
+        let tf_hour = tmfc.substr(8,2);
+        let tf_minute = tmfc.substr(10,2);
+        let tf_time = tf_year + '/' + tf_month + '/' + tf_date + ' ' + tf_hour + ':' + tf_minute; 
+        
+        content += '<tr><th>위치</th><td style="text-align:left;padding-left:10px;">'+ g.options.properties.loc +'</td></tr>';
+        content += '<tr><th>규모</th><td style="text-align:left;padding-left:10px;">'+ g.options.properties.mag +'</td></tr>';
+        content += '<tr><th>깊이</th><td style="text-align:left;padding-left:10px;">'+ g.options.properties.dep +' km</td></tr>';
+        content += '<tr><th>진앙시</th><td style="text-align:left;padding-left:10px;">'+ t_time +'</td></tr>';
+        content += '<tr><th>발표시각</th><td style="text-align:left;padding-left:10px;">'+ tf_time +'</td></tr>';
+        content += '<tr><th>참조사항</th><td style="text-align:left;padding-left:10px;">'+ g.options.properties.rem +'</td></tr>';
+        content += '<tr><th>진도</th><td style="text-align:left;padding-left:10px;">'+ g.options.properties.int +'</td></tr>';
+//                            content += '<tr><td  colspan="2" style="text-align:left;padding-left:10px;"><img src="'+ g.properties.img +'"></img></td></tr>';
+    }else{//gis기능이벤트
+        console.log('기능마크팝업');
+        console.log(g.options.properties.seq);
+        console.log(g.options.properties.lat);
+        console.log(g.options.properties.lon);
+        //복수개의 정보가 있을 수 있으므로 DB에서 데이타를 다시 가져온다.
+        var params = {
+            'sol_m_seq' : g.options.properties.seq,
+            'lat' : g.options.properties.lat,
+            'lon' : g.options.properties.lon
+        }
+        let resp = await fetch('/test/makerEvent.geojson');
+        let result = await resp.json();
+          
+        var map_list = result.map_list;
+        var data_list = result.data_list;
+        
+        
+        if(data_list.length>1){
+            var html_head = '<table class="basic_tbl" style="padding-right:10px;"><tbody>';
+            var html_body = '';
+            var html_tail = '</tbody></table>';
+
+            html_body += '<tr>';
+            $.each(map_list, function(idx, obj){
+                if(obj.map_opt == 'SIGN_NM'){
+                    html_body += '<th style="width:150px;">' + obj.sign_nm + '</th>';
+                }
+            });
+            html_body += '</tr>';
+
+            $.each(data_list, function(idx, obj){
+                html_body += '<tr>';
+                $.each(map_list, function(idx2, obj2){
+                    if(obj2.map_opt == 'SIGN_NM'){
+                        //console.log(obj2.data_field_nm);
+                        var td_data = obj[obj2.data_field_nm];
+                        if(td_data == '#N/A') td_data = '';
+                        html_body += '<td>' + td_data + '</td>';
+                    }
+                });
+                html_body += '</tr>';
+            });
+            var html = html_head + html_body + html_tail;
+            console.log(html);
+
+            content += '<tr>';
+            content += '<td colspan="2" style="width:100%;margin:0;padding:0;border-left:0;border-right:0;border-bottom:0;border-top:0;">'+ html +'</td>';
+            content += '</tr>';
+        }else{
+            $.each(data_list, function(idx, obj){
+                $.each(map_list, function(idx2, obj2){
+                    if(obj2.map_opt == 'SIGN_NM'){
+                        //console.log(obj2.data_field_nm);
+                        var td_data = obj[obj2.data_field_nm];
+                        if(td_data == '#N/A') td_data = '';
+                        content += '<tr>';
+                        content += '<th>' + obj2.sign_nm + '</th>';
+                        content += '<td style="text-align:left;padding-left:10px;">' + td_data + '</td>';
+                        content += '</tr>';
+                    }
+                });
+            });
+        } 
+    }
+    
+    content += '</tbody></table></div>'; 
+    
+    var options = {
+        'autoOpenOn' : false,  //set to null if not to open window when clicking on map
+        'single' : false,
+        'custom' : true,
+        'width' : 460,
+        'height' : 170,
+        'dx' : -230,
+        'dy' : -230 - 40,
+        'content'   : content
+    };
+
+    return options;
+}
+
+quake.addPointIdentify = function(e){
+    //identify
+    quake.map.identify(
+            {
+                'coordinate' : e.coordinate,
+                'layers' : quake.threeLayerList.filter(l=>l._id.includes('marker'))
+              },
+        function (geos) {
+            
+            if (geos.length === 0) {
+                return;
+            }
+            let clickMarkers = [];
+            for(var i=0; i<geos.length; i++){
+                var g = geos[i];
+                var lon = g.options.coordinate[0];
+                var lat = g.options.coordinate[1];
+                var from = turf.point([lon, lat]);
+                var to = turf.point([e.coordinate.x, e.coordinate.y]);
+                var distance = turf.distance(from, to);
+                var key = g.options.layer._id + ':' + g.object3d.uuid;
+                clickMarkers.push({key, distance});
+            }
+            clickMarkers.sort(function(a, b) {
+                let a_layerId_markerId = a.key.split(':');
+                let b_layerId_markerId = b.key.split(':');
+                
+                if(a_layerId_markerId[0] == 'quakeHistoryMarker' && b_layerId_markerId[0].includes('marker')){
+                    return 1;
+                }else if(a_layerId_markerId[0].includes('marker') && b_layerId_markerId[0] == 'quakeHistoryMarker'){
+                    return -1;
+                }else if(a_layerId_markerId[0] == 'quakeHistoryMarker' && b_layerId_markerId[0] == 'quakeHistoryMarker'){
+                    if(a.distance > b.distance){
+                        return 1;
+                    }
+                    if(a.distance < b.distance){
+                        return -1;
+                    }
+                }else if(a_layerId_markerId[0].includes('marker') && b_layerId_markerId[0].includes('marker')){
+                    if(a.distance > b.distance){
+                        return 1;
+                    }
+                    if(a.distance < b.distance){
+                        return -1;
+                    }
+                }
+                  
+                return 0;
+            });
+            
+            geos.forEach(function (g) {
+                let layerId_markerId = clickMarkers[0].key.split(':');
+                if(layerId_markerId[0] == g.options.layer._id && layerId_markerId[1] == g.object3d.uuid){
+                    //console.log(g);
+                    let markerTitle = '';
+                    let containerHeight = 'height:237px;';
+                    let containerHeight2 = 'height:188px;';
+                    let marginTop = 'top:-30px;';
+                    if(g.options.layer._id == 'quakeHistoryMarker'){  //지진 목록 마커이벤트 제목
+                        if(g.options.properties.fctp == '2'){
+                            markerTitle = '국외지진정보';
+                        }else if(g.options.properties.fctp == '3'){
+                            markerTitle = '국내지진정보';
+                        }else if(g.options.properties.fctp == '5'){
+                            markerTitle = '국내지진정보(재통보)';
+                        }else if(g.options.properties.fctp == '11'){
+                            markerTitle = '국내지진조기경보';
+                        }else if(g.options.properties.fctp == '12'){
+                            markerTitle = '국외지진조기경보';
+                        }else if(g.options.properties.fctp == '13'){
+                            markerTitle = '조기경보정밀분석';
+                        }else if(g.options.properties.fctp == '14'){
+                            markerTitle = '지진속보(조기분석)';
+                        }
+                        containerHeight = '';
+                        containerHeight2 = '';
+                        marginTop = 'top:-60px;';
+                    }else{//gis기능이벤트 제목
+                        markerTitle = g.options.properties.title;
+                        containerHeight = 'height:237px;';
+                        containerHeight2 = 'height:188px;';
+                        marginTop = '';
+                    }
+                    var content = 
+                        '<div class="map_info_area mia_type1" style="position:absolute;width:460px;' + containerHeight + 'z-index:1000;' + marginTop + '">' +
+                        //'<h3><em>' + g.properties.name + '</em><a href="#;" class="closebtn" onclick="flood.closeInfoWindow()"><i class="fal fa-times"></i></a></h3> '+
+                        '<h3 style="height:45px;"><em>' + markerTitle + '</em><a href="#;" class="closebtn" onclick="common_gis.closeInfoWindow()"><i class="fal fa-times"></i></a></h3> '+
+                        '<div class="mia_con alignCenter" style="background-color: #fff;' + containerHeight2 + 'overflow-y:scroll;">' +
+                          '<table class="basic_tbl">'+
+                                  '<colgroup>'+
+                                      '<col style="width:37%"/>'+
+                                      '<col style="width:63%"/>'+
+                                  '</colgroup>'+
+                                  '<tbody>';
+                    if(g.options.layer._id == 'quakeHistoryMarker'){ //지진 목록 마커이벤트
+                        let tmeqk = g.options.properties.tmeqk;//진앙시
+                        let t_year = tmeqk.substr(0,4);
+                        let t_month = tmeqk.substr(4,2);
+                        let t_date = tmeqk.substr(6,2);
+                        let t_hour = tmeqk.substr(8,2);
+                        let t_minute = tmeqk.substr(10,2);
+                        let t_second = tmeqk.substr(12,2);
+                        let t_time = t_year + '/' + t_month + '/' + t_date + ' ' + t_hour + ':' + t_minute + ':' + t_second;
+                        
+                        let tmfc = g.options.properties.tmfc;//발표시각
+                        let tf_year = tmfc.substr(0,4);
+                        let tf_month = tmfc.substr(4,2);
+                        let tf_date = tmfc.substr(6,2);
+                        let tf_hour = tmfc.substr(8,2);
+                        let tf_minute = tmfc.substr(10,2);
+                        let tf_time = tf_year + '/' + tf_month + '/' + tf_date + ' ' + tf_hour + ':' + tf_minute; 
+                        
+                        content += '<tr><th>위치</th><td style="text-align:left;padding-left:10px;">'+ g.options.properties.loc +'</td></tr>';
+                        content += '<tr><th>규모</th><td style="text-align:left;padding-left:10px;">'+ g.options.properties.mag +'</td></tr>';
+                        content += '<tr><th>깊이</th><td style="text-align:left;padding-left:10px;">'+ g.options.properties.dep +' km</td></tr>';
+                        content += '<tr><th>진앙시</th><td style="text-align:left;padding-left:10px;">'+ t_time +'</td></tr>';
+                        content += '<tr><th>발표시각</th><td style="text-align:left;padding-left:10px;">'+ tf_time +'</td></tr>';
+                        content += '<tr><th>참조사항</th><td style="text-align:left;padding-left:10px;">'+ g.options.properties.rem +'</td></tr>';
+                        content += '<tr><th>진도</th><td style="text-align:left;padding-left:10px;">'+ g.options.properties.int +'</td></tr>';
+//                            content += '<tr><td  colspan="2" style="text-align:left;padding-left:10px;"><img src="'+ g.properties.img +'"></img></td></tr>';
+                    }else{//gis기능이벤트
+                        console.log('기능마크팝업');
+                        console.log(g.options.properties.seq);
+                        console.log(g.options.properties.lat);
+                        console.log(g.options.properties.lon);
+                        //복수개의 정보가 있을 수 있으므로 DB에서 데이타를 다시 가져온다.
+                        // var params = {
+                        //     'sol_m_seq' : g.options.properties.seq,
+                        //     'lat' : g.options.properties.lat,
+                        //     'lon' : g.options.properties.lon
+                        // }
+                        // $.ajax({
+                        //     type : 'POST',
+                        //     url : gisObj.properties.contextPath + '/gis/common/selectFnMapData.do',
+                        //     async: false,
+                        //     data : params,
+                        //     success : function(result) {
+                        //         //alert(data);
+                        //         var map_list = result.map_list;
+                        //         var data_list = result.data_list;
+                                
+                               
+                        //         if(data_list.length>1){
+                        //             var html_head = '<table class="basic_tbl" style="padding-right:10px;"><tbody>';
+                        //             var html_body = '';
+                        //             var html_tail = '</tbody></table>';
+
+                        //             html_body += '<tr>';
+                        //             $.each(map_list, function(idx, obj){
+                        //                 if(obj.map_opt == 'SIGN_NM'){
+                        //                     html_body += '<th style="width:150px;">' + obj.sign_nm + '</th>';
+                        //                 }
+                        //             });
+                        //             html_body += '</tr>';
+
+                        //             $.each(data_list, function(idx, obj){
+                        //                 html_body += '<tr>';
+                        //                 $.each(map_list, function(idx2, obj2){
+                        //                     if(obj2.map_opt == 'SIGN_NM'){
+                        //                         //console.log(obj2.data_field_nm);
+                        //                         var td_data = obj[obj2.data_field_nm];
+                        //                         if(td_data == '#N/A') td_data = '';
+                        //                         html_body += '<td>' + td_data + '</td>';
+                        //                     }
+                        //                 });
+                        //                 html_body += '</tr>';
+                        //             });
+                        //             var html = html_head + html_body + html_tail;
+                        //             console.log(html);
+
+                        //             content += '<tr>';
+                        //             content += '<td colspan="2" style="width:100%;margin:0;padding:0;border-left:0;border-right:0;border-bottom:0;border-top:0;">'+ html +'</td>';
+                        //             content += '</tr>';
+                        //         }else{
+                        //             $.each(data_list, function(idx, obj){
+                        //                 $.each(map_list, function(idx2, obj2){
+                        //                     if(obj2.map_opt == 'SIGN_NM'){
+                        //                         //console.log(obj2.data_field_nm);
+                        //                         var td_data = obj[obj2.data_field_nm];
+                        //                         if(td_data == '#N/A') td_data = '';
+                        //                         content += '<tr>';
+                        //                         content += '<th>' + obj2.sign_nm + '</th>';
+                        //                         content += '<td style="text-align:left;padding-left:10px;">' + td_data + '</td>';
+                        //                         content += '</tr>';
+                        //                     }
+                        //                 });
+                        //             });
+                        //         }
+                                
+                        //     }
+                        // });
+                    }
+                    
+                    content += '</tbody></table></div>'; 
+                    
+                    var options = {
+                        'autoOpenOn' : false,  //set to null if not to open window when clicking on map
+                        'single' : false,
+                        'custom' : true,
+                        'width' : 460,
+                        'height' : 170,
+                        'dx' : -230,
+                        'dy' : -230 - 40,
+                        'content'   : content
+                    };
+                    
+                    if (quake.infoWindow != null) {
+                        quake.infoWindow.remove();
+                    }   
+                      
+                    var coordinate = g.options.coordinate;                  
+                    quake.infoWindow = new maptalks.ui.InfoWindow(options);
+                    quake.infoWindow.addTo(quake.map);
+                    quake.infoWindow.show(coordinate);
+                    //quake.infoWindow.addTo(quake.map).show(coordinate);
+                    //flood.map.setCenterAndZoom(coordinate, flood.map.getZoom());
+                }
+            });
+        }
+    );
+}
+
+function initGui() {
+    var params = {
+        add: true,
+        color: 0x00ffff,
+        show: true,
+        opacity: 1,
+        altitude: 0,
+        interactive: false
+    };
+    var gui = new dat.GUI();
+    
+    gui.addColor(params, 'color').name('line color').onChange(function () {
+        lineMaterial.color.set(params.color);
+        lines.forEach(function (mesh) {
+            mesh.setSymbol(lineMaterial);
+        });
+    });
+    gui.add(params, 'opacity', 0, 1).onChange(function () {
+        lineMaterial.opacity = params.opacity;
+        lines.forEach(function (mesh) {
+            mesh.setSymbol(lineMaterial);
+        });
+    });
+      
+    gui.addColor(params, 'color').name('polygon color').onChange(function () {
+        polygonMaterial.color.set(params.color);
+        polygonMeshs.forEach(function (mesh) {
+            mesh.setSymbol(polygonMaterial);
+        });
+    });
+    gui.add(params, 'opacity', 0, 1).onChange(function () {
+        polygonMaterial.opacity = params.opacity;
+        polygonMeshs.forEach(function (mesh) {
+            mesh.setSymbol(polygonMaterial);
+        });
+    });
+  
+}
+
+quake.closeInfoWindow = function(){
+    //console.log($('.map_info_area.mia_type1'));
+    //$('.map_info_area.mia_type1').css("display", "none");
+    
+    if (quake.infoWindow != null) {
+        quake.infoWindow.remove();
+    }
 }
