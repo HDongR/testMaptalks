@@ -1,17 +1,215 @@
 var quake = {
     map: {},
-    threeLayerList: [],
+    threeLayer: {}
 };
 var stats = null;
 var infoWindow;
 quake.infoWindow = infoWindow;
 
+let hardwareConcurrency = typeof window !== 'undefined' ? window.navigator.hardwareConcurrency || 4 : 0;
+let atdWorkerCount = Math.max(Math.floor(hardwareConcurrency / 2), 1);
+let currentAtdWorkerQueue = 0;
+let atdReceivedData = {};
+let atdData = new Map();
+let atdWorkerQueueList = [];
+
+for(var i=0; i<atdWorkerCount; i++){
+    let wktq = new WorkerThreadQueue();
+    wktq.qid = i;
+    let w = new Worker('/js/worker/atd_worker.js');
+    w.wid = i;
+   
+    atdWorkerQueueList.push({wktq, w});
+}
+
+function setAtdWorkers(){
+    for(var i=0; i<atdWorkerCount; i++){
+        atdPostWorkerQueue("TRLD", null, null, mergeAtdWorkerCallback);
+    }
+}
+
+function getAtdWorkerQueue() {
+    var queue;
+    var w;
+    atdWorkerQueueList.some(el => {
+      if(el.wktq.qid == currentAtdWorkerQueue && el.w.wid == currentAtdWorkerQueue){
+        if(el.wktq && el.w){
+            queue = el.wktq;
+            w = el.w;
+            return true;
+        }
+      }
+    });
+    
+    currentAtdWorkerQueue++;
+    if(currentAtdWorkerQueue >= atdWorkerCount){
+        currentAtdWorkerQueue = 0;
+    }
+  
+    return {queue,w};
+}
+
+function atdPostWorkerQueue(what, data, layer, callback){
+    let wktqNw = getAtdWorkerQueue(); 
+    wktqNw.queue.pushQueue(wktqNw.w,{what, data, qid:wktqNw.queue.qid, wid:wktqNw.w.wid, layer}, callback);
+}
+
+async function runAtdWorker(params) {
+    console.time('performance');
+
+    let layer = params.layer;
+    let LngLatData = params.LngLatData;
+    let sliceCnt = atdWorkerCount;
+    let elementSize = Math.floor(LngLatData.length / sliceCnt);
+    let namugi = LngLatData.length % sliceCnt;
+    
+    for(var i=0; i<sliceCnt; i++) {
+        let start = i * elementSize;
+        let end = (i + 1) * elementSize;
+        if(namugi > 0) {
+            if(i == sliceCnt - 1) {
+                end = LngLatData.length;
+            }
+        }
+        let sl = LngLatData.slice(start, end);
+        atdPostWorkerQueue("TRAN", sl, layer, mergeAtdWorkerCallback);
+    }
+}
+
+let workerCompleCnt = 0;
+function mergeAtdWorkerCallback(e){
+    if(e.data.what == 'TRCP'){
+        workerCompleCnt++;
+        if(workerCompleCnt == atdWorkerCount){
+            console.log("all atd worker complete");
+        }
+    }else if(e.data.what == 'TRANCOPLETE'){
+        let qid = e.data.qid;
+        let wid = e.data.wid;
+        let transData = e.data.transData;
+        let layer = e.data.layer;
+
+        atdReceivedData[qid] = transData;
+
+        if(objSize(atdReceivedData) == atdWorkerCount){
+            // let sortedO = common_gis.sortObject(wavReceivedData);
+            // for (k in sortedO){
+            //     let zxdf = sortedO[k];
+            //     __data.push(...zxdf);
+            // }
+            let l = Object.values(atdReceivedData);
+            let rcvData = [];
+            l.forEach(_l => {
+                rcvData.push(..._l);
+            });
+            atdData.set(layer, rcvData);
+            atdPostProcess(layer);
+            console.timeEnd('performance'); 
+        }
+    } 
+}
+
+function atdPostProcess(layer){ 
+    let rcvData = atdData.get(layer);
+
+    let processData = new Map();
+    for(var i=0; i<rcvData.length; i++){
+        let rd = rcvData[i];
+        let idx = rd.d.i;
+        let x = rd.d.x;
+        let y = rd.d.y;
+        let altitude = rd.altitude;
+
+        if(processData.has(idx)){
+            let xyzList = processData.get(idx);
+            xyzList.push({x,y,altitude});
+        }else{
+            let xyzList = []
+            xyzList.push({x,y,altitude});
+            processData.set(idx, xyzList);
+        }
+    }
+
+    let childPos = -1;
+    for(var i=0; i<quake.threeLayer._renderer.scene.children.length; i++){
+        let c = quake.threeLayer._renderer.scene.children[i];
+        if(c.type == layer){
+            childPos = i;
+            break;
+        }
+    }
+
+    // let c = quake.threeLayer._renderer.scene.children[childPos];
+    // let posCnt = c.geometry.attributes.position.count;
+    // for(var i=0; i<posCnt; i++){
+    //     c.geometry.attributes.position.setZ(i, 1);
+    // }
+    // c.geometry.attributes.position.needsUpdate = true;
+    // c.geometry.computeBoundingBox();
+    // c.geometry.computeBoundingSphere();
+
+    let allCnt = 0; 
+    let endPos = 0;
+    for (var [key, value] of processData) {
+        let vcnt = value.length * 3 + ((value.length - 2) * 3);
+        allCnt+=vcnt;
+
+        let idxCnt = (2 + ((value.length - 2) * 2));
+
+        let selIdx = 0;
+
+        for(var i=0; i<value.length; i++){ //4개 18개 6
+            let vd = value[i];
+            let x = vd.x;
+            let y = vd.y;
+            let altitude = vd.altitude + 0.020;
+
+            let c = quake.threeLayer._renderer.scene.children[childPos];
+            let posCnt = c.geometry.attributes.position.count;
+            if(i == 0 || i == value.length - 1){
+                c.geometry.attributes.position.setZ(selIdx + endPos, altitude);
+                selIdx++;
+            }else{
+                c.geometry.attributes.position.setZ(selIdx + endPos, altitude);
+                selIdx++;
+                c.geometry.attributes.position.setZ(selIdx + endPos, altitude);
+                selIdx++;
+            }
+            if(i == value.length - 1){
+                endPos += (2 + ((value.length - 2) * 2));
+            }
+
+            c.geometry.attributes.position.needsUpdate = true;
+            c.geometry.computeBoundingBox();
+            c.geometry.computeBoundingSphere();
+            
+        }
+        
+    }
+    //quake.map.sortLayers(['d','d2']);
+    const object3ds = quake.threeLayer.getMeshes(); 
+    object3ds.forEach(object3d => {
+        if(object3d.object3d){
+            let o3 = object3d.object3d;
+            if(o3.type == layer){
+                o3.renderOrder = 0;
+            }else{
+                o3.renderOrder = 100;
+            }
+        }
+       
+    });
+    
+    console.log(layer);
+}
+
 quake.viewMap = function () {
     quake.setBaseLayer();
-    quake.setThreeLayer('line');
-    quake.setThreeLayer('polygon');
-    quake.setThreeLayer('marker');
-    quake.setThreeLayer('terrain');
+
+    setAtdWorkers();
+
+
+    quake.setThreeLayer(); 
 
     quake.addPointEvent();
     quake.sortLayers();
@@ -47,13 +245,15 @@ quake.setBaseLayer = function () {
 }
 
 //three layer 생성
-quake.setThreeLayer = function (id) {
-    let threeLayer = new maptalks.ThreeLayer(id, {
+quake.setThreeLayer = function () {
+    quake.threeLayer = new maptalks.ThreeLayer('threelayer', {
         forceRenderOnMoving: false,
         forceRenderOnRotating: false
     });
 
-    threeLayer.prepareToDraw = function (gl, scene, camera) {
+    
+
+    quake.threeLayer.prepareToDraw = function (gl, scene, camera) {
         stats = new Stats();
         stats.domElement.style.zIndex = 100;
         document.getElementById('map').appendChild(stats.domElement);
@@ -61,46 +261,37 @@ quake.setThreeLayer = function (id) {
         var light = new THREE.DirectionalLight(0xffffff);
         light.position.set(0, -10, 10).normalize();
         scene.add(light);
-
-        if(id == 'line'){
-            loadLine();
-        }else if(id == 'polygon'){
-            loadPolygon();
-        }else if(id == 'marker'){
-            loadPoint();
-        }else if(id == 'terrain'){
-            
-        }
+ 
+        loadLine(); 
+        loadPolygon(); 
+        loadPoint();
     }
 
-    threeLayer.addTo(quake.map);
-
-    quake.threeLayerList.push(threeLayer);
+    quake.threeLayer.addTo(quake.map);
     //quake.map.on('moving moveend zoomend pitch rotate', update);
 
     //update();
 }
 
 quake.sortLayers = function () {
-    let sortLayers = []; 
+    //let sortLayers = []; 
     // quake.map.layer.forEach(l=>{
     //     if(l.type == 'ThreeLayer'){
     //         sortLayers.push(l);
     //     }
     // });
-    sortLayers.push(quake.threeLayerList[1], quake.threeLayerList[0], quake.threeLayerList[2], quake.threeLayerList[3]);
-    quake.map.sortLayers(sortLayers);   
+    //sortLayers.push(quake.threeLayer[3], quake.threeLayer[1], quake.threeLayer[0], quake.threeLayer[2] );
+    //quake.map.sortLayers(sortLayers);   
 }
 
 
 function animation() {
     // layer animation support Skipping frames
-    quake.threeLayerList.forEach(tl=>{
-        tl._needsUpdate = !tl._needsUpdate;
-        if (tl._needsUpdate) {
-            tl.renderScene();
-        }
-    });
+ 
+    quake.threeLayer._needsUpdate = !quake.threeLayer._needsUpdate;
+    if (quake.threeLayer._needsUpdate) {
+        quake.threeLayer.renderScene();
+    } 
     if(stats){
         stats.update();
     }
@@ -116,14 +307,13 @@ function loadLine() {
         return res.json();
     }).then(function (geojson) {
         geojson = JSON.parse(geojson.geojson);
-
             
         var lineStrings = maptalks.GeoJSON.toGeometry(geojson);
         var timer = 'generate line time';
         console.time(timer);
-        const mesh = quake.threeLayerList[0].toLines(lineStrings, { interactive: false}, lineMaterial);
+        const mesh = quake.threeLayer.toLines(lineStrings, { interactive: false}, lineMaterial);
         lines.push(mesh);
-        quake.threeLayerList[0].addMesh(mesh);
+        quake.threeLayer.addMesh(mesh);
     });
 }
 
@@ -151,8 +341,8 @@ function loadPolygon() {
 
         });
         if (polygons.length > 0) {
-            var mesh = quake.threeLayerList[1].toExtrudePolygons(polygons.slice(0, Infinity), { topColor: '#fff', interactive: false }, polygonMaterial);
-            quake.threeLayerList[1].addMesh(mesh);
+            var mesh = quake.threeLayer.toExtrudePolygons(polygons.slice(0, Infinity), { topColor: '#fff', interactive: false }, polygonMaterial);
+            quake.threeLayer.addMesh(mesh);
             polygonMeshs.push(mesh);
             polygons.length = 0;
         }
@@ -167,13 +357,13 @@ function createMateria(fillStyle) {
         color: fillStyle,
         // alphaTest: 0.5,
         // vertexColors: THREE.VertexColors,
-        //  transparent: true
+        transparent: true,
         // color: 0xffffff,
         size: 25,
-        transparent: true, //使材质透明
-        blending: THREE.AdditiveBlending,
-        depthTest: true, //深度测试关闭，不消去场景的不可见面
-        depthWrite: false,
+        //transparent: true, //使材质透明
+        //blending: THREE.AdditiveBlending,
+        //depthTest: true, //深度测试关闭，不消去场景的不可见面
+        //depthWrite: false,
         map: new THREE.TextureLoader().load('/test/selectFnIcon' + (idx+1) + '.png')
         //刚刚创建的粒子贴图就在这里用上
     });
@@ -213,7 +403,7 @@ function loadPoint() {
              
         points = lnglats.map(lnglat => {
             const material = createMateria();
-            const point = quake.threeLayerList[2].toPoint(lnglat.coordinate, { height: 100, properties:lnglat.properties }, material);
+            const point = quake.threeLayer.toPoint(lnglat.coordinate, { height: 100, properties:lnglat.properties }, material);
             for(var i=0; i<point.object3d.geometry.attributes.position.count; i++){
                 //point.object3d.geometry.attributes.position.setZ(i, 0.1);
             } 
@@ -256,7 +446,7 @@ function loadPoint() {
             return point;
 
         });
-        quake.threeLayerList[2].addMesh(points); 
+        quake.threeLayer.addMesh(points); 
     });
 }
 
@@ -420,7 +610,7 @@ quake.addPointIdentify = function(e){
     quake.map.identify(
             {
                 'coordinate' : e.coordinate,
-                'layers' : quake.threeLayerList.filter(l=>l._id.includes('marker'))
+                'layers' : quake.threeLayer
               },
         function (geos) {
             
@@ -696,6 +886,25 @@ quake.loadTerrain = async function(){
             terrainList.forEach(t=>{t.visible = true;});
         }else{
             quake.loadTerrainNetwork();
+            quake.threeLayer._renderer.scene.children.forEach(c=>{
+                if(c.type == 'LineSegments'){
+
+                    let LngLatData = [];
+                    let pData = c.__parent._datas;
+                    for(var i=0; i<pData.length; i++){
+                        let p = pData[i];
+                        for(var j=0; j<p._coordinates.length; j++){
+                            let coord = p._coordinates[j];
+                            let x = coord.x;
+                            let y = coord.y;
+                
+                            LngLatData.push({i, x, y});
+                        }
+                    }
+
+                    runAtdWorker({layer:c.type, LngLatData});
+                }
+            });
         }
     }else{ //hide
         if(terrainList.length > 0 ){
@@ -703,6 +912,7 @@ quake.loadTerrain = async function(){
         }
 
     }
+     
     
 }
 
@@ -776,7 +986,7 @@ quake.loadTerrainNetwork = async function(){
             }*/
             for (var i = 0, l = geometry.attributes.position.count; i < l; i++) {
                 const z = pdata[i][2]/zResol;//.threeLayer.distanceToVector3(pdata[i][2], pdata[i][2]).x;
-                const v = quake.threeLayerList[3].coordinateToVector3([pdata[i][0],pdata[i][1]], z);
+                const v = quake.threeLayer.coordinateToVector3([pdata[i][0],pdata[i][1]], z);
                 geometry.attributes.position.setXYZ(i, v.x, v.y, v.z);
             }
           
@@ -790,11 +1000,35 @@ quake.loadTerrainNetwork = async function(){
             });
             
             var plane = new THREE.Mesh(geometry, material);   
-            quake.threeLayerList[3].addMesh(plane);
+            quake.threeLayer.addMesh(plane);
             plane.custom2DExtent = new maptalks.Extent(sData[0], sData[1], eData[0], eData[1]);
             terrainList.push(plane);
           });//arraybuffer
         }//16900
       }); //fetch
     }//for
+}
+
+function objSize(obj) {
+    var size = 0,
+      key;
+    for (key in obj) {
+      if (obj.hasOwnProperty(key)) size++;
+    }
+    return size;
+}
+
+function sortObject(o){
+    var sorted = {},
+
+    key, a = [];
+    for (key in o) {
+        if (o.hasOwnProperty(key)) a.push(key);
+    }
+    a.sort(); 
+
+    for (key=0; key<a.length; key++) {
+        sorted[a[key]] = o[a[key]];
+    }
+    return sorted;
 }
