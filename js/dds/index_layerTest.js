@@ -204,7 +204,6 @@ quake.viewMap = function () {
 
     quake.setThreeLayer();
 
-    quake.addPointEvent();
     quake.sortLayers();
 
     animation();
@@ -254,8 +253,6 @@ quake.setThreeLayer = function () {
         var light = new THREE.DirectionalLight(0xffffff);
         light.position.set(0, -10, 10).normalize();
         scene.add(light);
-
-        loadPoint();
     }
 
     quake.threeLayer.addTo(quake.map);
@@ -313,7 +310,8 @@ function getMesh(customId) {
 
 
 function loadLine(e) {
-    let customId = 'line';
+    let seq = 0;
+    let customId = 'line_' + seq;
     let meshs = getMesh(customId);
     if (e.checked) {
         if (meshs && meshs.length > 0) {
@@ -349,8 +347,8 @@ var polygonMaterial = new THREE.MeshPhongMaterial({ color: 0x00ffff, transparent
 let polygonMeshs = [];
 
 function loadPolygon(e) {
-
-    let customId = 'polygon';
+    let seq = 0;
+    let customId = 'polygon_' + seq;
     let meshs = getMesh(customId);
     if (e.checked) {
         if (meshs && meshs.length > 0) {
@@ -377,7 +375,7 @@ function loadPolygon(e) {
         
                 });
                 if (polygons.length > 0) {
-                    var mesh = quake.threeLayer.toExtrudePolygons(polygons.slice(0, Infinity), { topColor: '#fff', interactive: false }, polygonMaterial);
+                    var mesh = quake.threeLayer.toExtrudePolygons(polygons.slice(0, Infinity), { topColor: '#fff', interactive: false, is3D:true }, polygonMaterial);
                     mesh.customId = customId;
                     quake.threeLayer.addMesh(mesh);
                     polygonMeshs.push(mesh);
@@ -415,90 +413,105 @@ function createMateria(fillStyle) {
 }
 
 let markerList = [];
-function loadPoint() {
-    fetch('/test/pointTest.geojson').then((function (res) {
-        return res.json();
-    })).then(function (json) {
-        let seq = 261;
-
-        let dataInfo = json.dataInfo;
-        let dataList = json.dataList;
-
-        var lon;
-        var lat;
-        var addr;
-        $.each(dataList, function (idx, obj) {
-            //console.log(obj);
-            if (obj.map_opt == "LON") {
-                lon = obj.data_field_nm;//x?
-            } else if (obj.map_opt == "LAT") {
-                lat = obj.data_field_nm;//x?
-            } else if (obj.map_opt == "ADDR") {
-                addr = obj.data_field_nm;//x?
-            }
-        });
-
-        const lnglats = [];
-        dataInfo.forEach(di => {
-            di.seq = seq;
-            di.lon = di.LNG;
-            di.lat = di.LAT;
-            lnglats.push({ coordinate: [di.LNG, di.LAT], properties: di });
-        });
-
-        points = lnglats.map(lnglat => {
-            const material = createMateria();
-            const point = quake.threeLayer.toPoint(lnglat.coordinate, { height: 100, properties: lnglat.properties }, material);
-            for (var i = 0; i < point.object3d.geometry.attributes.position.count; i++) {
-                //point.object3d.geometry.attributes.position.setZ(i, 0.1);
-            }
-            //infowindow test
-
-            point.setInfoWindow(//options
-                {
-                    containerClass: 'maptalks-msgBox',
-                    autoPan: false,
-                    autoCloseOn: null,
-                    autoOpenOn: 'click',
-                    width: 0,
-                    height: 0,
-                    minHeight: 0,
-                    custom: true,
-                    title: '',
-                    content: '',
-                    animation: 'fade',
-                    showTimeout: 200
-                }
-            );
-            //event test
-            ['click'].forEach(function (eventType) {
-                point.on(eventType, async function (e) {
-                    console.log(e.type, e);
-                    let data = e.target.options.properties;
-                    if (e.type === 'click' && data) {
-                        const value = data.value;
-                        quake.infoWindow = this.getInfoWindow();
-                        let options = await getContents(point);
-
-                        quake.infoWindow.setContent(options.content);
-                        if (quake.infoWindow && (!quake.infoWindow._owner)) {
-                            quake.infoWindow.addTo(this).show({ x: e.target.options.coordinate[0], y: e.target.options.coordinate[1] });
-                        }
-                        //this.openInfoWindow(e.coordinate);
+function loadPoint(e) {
+    let seq = 0;
+    let customId = 'point_' + seq;
+    let meshs = getMesh(customId);
+    if (e.checked) {
+        if (meshs && meshs.length > 0) {
+            meshs.forEach(m => { 
+                m.show();
+            });
+        } else {
+            fetch('/test/pointTest.geojson').then((function (res) {
+                return res.json();
+            })).then(function (json) {
+                let seq = 261;
+        
+                let dataInfo = json.dataInfo;
+                let dataList = json.dataList;
+        
+                var lon;
+                var lat;
+                var addr;
+                $.each(dataList, function (idx, obj) {
+                    //console.log(obj);
+                    if (obj.map_opt == "LON") {
+                        lon = obj.data_field_nm;//x?
+                    } else if (obj.map_opt == "LAT") {
+                        lat = obj.data_field_nm;//x?
+                    } else if (obj.map_opt == "ADDR") {
+                        addr = obj.data_field_nm;//x?
                     }
                 });
+        
+                const lnglats = [];
+                dataInfo.forEach(di => {
+                    di.seq = seq;
+                    di.lon = di.LNG;
+                    di.lat = di.LAT;
+                    lnglats.push({ coordinate: [di.LNG, di.LAT], properties: di });
+                });
+        
+                points = lnglats.map(lnglat => {
+                    const material = createMateria();
+                    const point = quake.threeLayer.toPoint(lnglat.coordinate, { height: 100, properties: lnglat.properties }, material);
+                    point.customId = customId;
+                    
+                    
+                    //for (var i = 0; i < point.object3d.geometry.attributes.position.count; i++) {
+                        //point.object3d.geometry.attributes.position.setZ(i, 0.1);
+                    //}
+                    //infowindow test
+        
+                    point.setInfoWindow(//options
+                        {
+                            containerClass: 'maptalks-msgBox',
+                            autoPan: false,
+                            autoCloseOn: null,
+                            autoOpenOn: 'click',
+                            width: 0,
+                            height: 0,
+                            minHeight: 0,
+                            custom: true,
+                            title: '',
+                            content: '',
+                            animation: 'fade',
+                            showTimeout: 200
+                        }
+                    );
+                    //event test
+                    ['click'].forEach(function (eventType) {
+                        point.on(eventType, async function (e) {
+                            console.log(e.type, e);
+                            let data = e.target.options.properties;
+                            if (e.type === 'click' && data) {
+                                const value = data.value;
+                                quake.infoWindow = this.getInfoWindow();
+                                let options = await getContents(point);
+        
+                                quake.infoWindow.setContent(options.content);
+                                if (quake.infoWindow && (!quake.infoWindow._owner)) {
+                                    quake.infoWindow.addTo(this).show({ x: e.target.options.coordinate[0], y: e.target.options.coordinate[1] });
+                                }
+                                //this.openInfoWindow(e.coordinate);
+                            }
+                        });
+                    });
+                    return point;
+        
+                });
+                
+                quake.threeLayer.addMesh(points);
             });
-            return point;
-
-        });
-        quake.threeLayer.addMesh(points);
-    });
-}
-
-quake.addPointEvent = function () {
-    //quake.map.on('click', function(e){
-    //quake.addPointIdentify(e);
-    //});
+        }
+    } else {
+        if (meshs && meshs.length > 0) {
+            meshs.forEach(m => { 
+                m.hide();
+            });
+        }
+    }
 }
 
 async function getContents(g) {
@@ -650,228 +663,6 @@ async function getContents(g) {
     return options;
 }
 
-quake.addPointIdentify = function (e) {
-    //identify
-    quake.map.identify(
-        {
-            'coordinate': e.coordinate,
-            'layers': quake.threeLayer
-        },
-        function (geos) {
-
-            if (geos.length === 0) {
-                return;
-            }
-            let clickMarkers = [];
-            for (var i = 0; i < geos.length; i++) {
-                var g = geos[i];
-                var lon = g.options.coordinate[0];
-                var lat = g.options.coordinate[1];
-                var from = turf.point([lon, lat]);
-                var to = turf.point([e.coordinate.x, e.coordinate.y]);
-                var distance = turf.distance(from, to);
-                var key = g.options.layer._id + ':' + g.object3d.uuid;
-                clickMarkers.push({ key, distance });
-            }
-            clickMarkers.sort(function (a, b) {
-                let a_layerId_markerId = a.key.split(':');
-                let b_layerId_markerId = b.key.split(':');
-
-                if (a_layerId_markerId[0] == 'quakeHistoryMarker' && b_layerId_markerId[0].includes('marker')) {
-                    return 1;
-                } else if (a_layerId_markerId[0].includes('marker') && b_layerId_markerId[0] == 'quakeHistoryMarker') {
-                    return -1;
-                } else if (a_layerId_markerId[0] == 'quakeHistoryMarker' && b_layerId_markerId[0] == 'quakeHistoryMarker') {
-                    if (a.distance > b.distance) {
-                        return 1;
-                    }
-                    if (a.distance < b.distance) {
-                        return -1;
-                    }
-                } else if (a_layerId_markerId[0].includes('marker') && b_layerId_markerId[0].includes('marker')) {
-                    if (a.distance > b.distance) {
-                        return 1;
-                    }
-                    if (a.distance < b.distance) {
-                        return -1;
-                    }
-                }
-
-                return 0;
-            });
-
-            geos.forEach(function (g) {
-                let layerId_markerId = clickMarkers[0].key.split(':');
-                if (layerId_markerId[0] == g.options.layer._id && layerId_markerId[1] == g.object3d.uuid) {
-                    //console.log(g);
-                    let markerTitle = '';
-                    let containerHeight = 'height:237px;';
-                    let containerHeight2 = 'height:188px;';
-                    let marginTop = 'top:-30px;';
-                    if (g.options.layer._id == 'quakeHistoryMarker') {  //지진 목록 마커이벤트 제목
-                        if (g.options.properties.fctp == '2') {
-                            markerTitle = '국외지진정보';
-                        } else if (g.options.properties.fctp == '3') {
-                            markerTitle = '국내지진정보';
-                        } else if (g.options.properties.fctp == '5') {
-                            markerTitle = '국내지진정보(재통보)';
-                        } else if (g.options.properties.fctp == '11') {
-                            markerTitle = '국내지진조기경보';
-                        } else if (g.options.properties.fctp == '12') {
-                            markerTitle = '국외지진조기경보';
-                        } else if (g.options.properties.fctp == '13') {
-                            markerTitle = '조기경보정밀분석';
-                        } else if (g.options.properties.fctp == '14') {
-                            markerTitle = '지진속보(조기분석)';
-                        }
-                        containerHeight = '';
-                        containerHeight2 = '';
-                        marginTop = 'top:-60px;';
-                    } else {//gis기능이벤트 제목
-                        markerTitle = g.options.properties.title;
-                        containerHeight = 'height:237px;';
-                        containerHeight2 = 'height:188px;';
-                        marginTop = '';
-                    }
-                    var content =
-                        '<div class="map_info_area mia_type1" style="position:absolute;width:460px;' + containerHeight + 'z-index:1000;' + marginTop + '">' +
-                        //'<h3><em>' + g.properties.name + '</em><a href="#;" class="closebtn" onclick="flood.closeInfoWindow()"><i class="fal fa-times"></i></a></h3> '+
-                        '<h3 style="height:45px;"><em>' + markerTitle + '</em><a href="#;" class="closebtn" onclick="common_gis.closeInfoWindow()"><i class="fal fa-times"></i></a></h3> ' +
-                        '<div class="mia_con alignCenter" style="background-color: #fff;' + containerHeight2 + 'overflow-y:scroll;">' +
-                        '<table class="basic_tbl">' +
-                        '<colgroup>' +
-                        '<col style="width:37%"/>' +
-                        '<col style="width:63%"/>' +
-                        '</colgroup>' +
-                        '<tbody>';
-                    if (g.options.layer._id == 'quakeHistoryMarker') { //지진 목록 마커이벤트
-                        let tmeqk = g.options.properties.tmeqk;//진앙시
-                        let t_year = tmeqk.substr(0, 4);
-                        let t_month = tmeqk.substr(4, 2);
-                        let t_date = tmeqk.substr(6, 2);
-                        let t_hour = tmeqk.substr(8, 2);
-                        let t_minute = tmeqk.substr(10, 2);
-                        let t_second = tmeqk.substr(12, 2);
-                        let t_time = t_year + '/' + t_month + '/' + t_date + ' ' + t_hour + ':' + t_minute + ':' + t_second;
-
-                        let tmfc = g.options.properties.tmfc;//발표시각
-                        let tf_year = tmfc.substr(0, 4);
-                        let tf_month = tmfc.substr(4, 2);
-                        let tf_date = tmfc.substr(6, 2);
-                        let tf_hour = tmfc.substr(8, 2);
-                        let tf_minute = tmfc.substr(10, 2);
-                        let tf_time = tf_year + '/' + tf_month + '/' + tf_date + ' ' + tf_hour + ':' + tf_minute;
-
-                        content += '<tr><th>위치</th><td style="text-align:left;padding-left:10px;">' + g.options.properties.loc + '</td></tr>';
-                        content += '<tr><th>규모</th><td style="text-align:left;padding-left:10px;">' + g.options.properties.mag + '</td></tr>';
-                        content += '<tr><th>깊이</th><td style="text-align:left;padding-left:10px;">' + g.options.properties.dep + ' km</td></tr>';
-                        content += '<tr><th>진앙시</th><td style="text-align:left;padding-left:10px;">' + t_time + '</td></tr>';
-                        content += '<tr><th>발표시각</th><td style="text-align:left;padding-left:10px;">' + tf_time + '</td></tr>';
-                        content += '<tr><th>참조사항</th><td style="text-align:left;padding-left:10px;">' + g.options.properties.rem + '</td></tr>';
-                        content += '<tr><th>진도</th><td style="text-align:left;padding-left:10px;">' + g.options.properties.int + '</td></tr>';
-                        //                            content += '<tr><td  colspan="2" style="text-align:left;padding-left:10px;"><img src="'+ g.properties.img +'"></img></td></tr>';
-                    } else {//gis기능이벤트
-                        console.log('기능마크팝업');
-                        console.log(g.options.properties.seq);
-                        console.log(g.options.properties.lat);
-                        console.log(g.options.properties.lon);
-                        //복수개의 정보가 있을 수 있으므로 DB에서 데이타를 다시 가져온다.
-                        // var params = {
-                        //     'sol_m_seq' : g.options.properties.seq,
-                        //     'lat' : g.options.properties.lat,
-                        //     'lon' : g.options.properties.lon
-                        // }
-                        // $.ajax({
-                        //     type : 'POST',
-                        //     url : gisObj.properties.contextPath + '/gis/common/selectFnMapData.do',
-                        //     async: false,
-                        //     data : params,
-                        //     success : function(result) {
-                        //         //alert(data);
-                        //         var map_list = result.map_list;
-                        //         var data_list = result.data_list;
-
-
-                        //         if(data_list.length>1){
-                        //             var html_head = '<table class="basic_tbl" style="padding-right:10px;"><tbody>';
-                        //             var html_body = '';
-                        //             var html_tail = '</tbody></table>';
-
-                        //             html_body += '<tr>';
-                        //             $.each(map_list, function(idx, obj){
-                        //                 if(obj.map_opt == 'SIGN_NM'){
-                        //                     html_body += '<th style="width:150px;">' + obj.sign_nm + '</th>';
-                        //                 }
-                        //             });
-                        //             html_body += '</tr>';
-
-                        //             $.each(data_list, function(idx, obj){
-                        //                 html_body += '<tr>';
-                        //                 $.each(map_list, function(idx2, obj2){
-                        //                     if(obj2.map_opt == 'SIGN_NM'){
-                        //                         //console.log(obj2.data_field_nm);
-                        //                         var td_data = obj[obj2.data_field_nm];
-                        //                         if(td_data == '#N/A') td_data = '';
-                        //                         html_body += '<td>' + td_data + '</td>';
-                        //                     }
-                        //                 });
-                        //                 html_body += '</tr>';
-                        //             });
-                        //             var html = html_head + html_body + html_tail;
-                        //             console.log(html);
-
-                        //             content += '<tr>';
-                        //             content += '<td colspan="2" style="width:100%;margin:0;padding:0;border-left:0;border-right:0;border-bottom:0;border-top:0;">'+ html +'</td>';
-                        //             content += '</tr>';
-                        //         }else{
-                        //             $.each(data_list, function(idx, obj){
-                        //                 $.each(map_list, function(idx2, obj2){
-                        //                     if(obj2.map_opt == 'SIGN_NM'){
-                        //                         //console.log(obj2.data_field_nm);
-                        //                         var td_data = obj[obj2.data_field_nm];
-                        //                         if(td_data == '#N/A') td_data = '';
-                        //                         content += '<tr>';
-                        //                         content += '<th>' + obj2.sign_nm + '</th>';
-                        //                         content += '<td style="text-align:left;padding-left:10px;">' + td_data + '</td>';
-                        //                         content += '</tr>';
-                        //                     }
-                        //                 });
-                        //             });
-                        //         }
-
-                        //     }
-                        // });
-                    }
-
-                    content += '</tbody></table></div>';
-
-                    var options = {
-                        'autoOpenOn': false,  //set to null if not to open window when clicking on map
-                        'single': false,
-                        'custom': true,
-                        'width': 460,
-                        'height': 170,
-                        'dx': -230,
-                        'dy': -230 - 40,
-                        'content': content
-                    };
-
-                    if (quake.infoWindow != null) {
-                        quake.infoWindow.remove();
-                    }
-
-                    var coordinate = g.options.coordinate;
-                    quake.infoWindow = new maptalks.ui.InfoWindow(options);
-                    quake.infoWindow.addTo(quake.map);
-                    quake.infoWindow.show(coordinate);
-                    //quake.infoWindow.addTo(quake.map).show(coordinate);
-                    //flood.map.setCenterAndZoom(coordinate, flood.map.getZoom());
-                }
-            });
-        }
-    );
-}
-
 function initGui() {
     var params = {
         add: true,
@@ -932,26 +723,52 @@ quake.loadTerrain = async function (e) {
         } else {
             quake.loadTerrainNetwork();
 
-            //line
+            
             quake.threeLayer._renderer.scene.children.forEach(c => {
-                if (c.type == 'LineSegments') {
+                //line
+                if(c.__parent && c.__parent.customId){
+                    let mesh_seq = c.__parent.customId.split('_');
+                    let customId = mesh_seq[0];
+                    let seq = mesh_seq[1];
 
-                    let LngLatData = [];
-                    let pData = c.__parent._datas;
-                    for (var i = 0; i < pData.length; i++) {
-                        let p = pData[i];
-                        for (var j = 0; j < p._coordinates.length; j++) {
-                            let coord = p._coordinates[j];
-                            let x = coord.x;
-                            let y = coord.y;
-
-                            LngLatData.push({ i, x, y });
+                    if(customId == 'line'){
+                        let LngLatData = [];
+                        let pData = c.__parent._datas;
+                        for (var i = 0; i < pData.length; i++) {
+                            let p = pData[i];
+                            for (var j = 0; j < p._coordinates.length; j++) {
+                                let coord = p._coordinates[j];
+                                let x = coord.x;
+                                let y = coord.y;
+    
+                                LngLatData.push({ i, x, y });
+                            }
                         }
-                    }
+    
+                        runAtdWorker({ layer: c.type, LngLatData });
+                    }else if(customId == 'polygon'){
+                        let LngLatData = [];
+                        let pData = c.__parent._datas;
+                        for (var i = 0; i < pData.length; i++) {
+                            let p = pData[i];
+                            for (var j = 0; j < p._coordinates.length; j++) {
+                                let coord = p._coordinates[j];
+                                let x = coord.x;
+                                let y = coord.y;
+    
+                                LngLatData.push({ i, x, y });
+                            }
+                        }
+    
+                        runAtdWorker({ layer: c.type, LngLatData });
+                    }else if(customId == 'point'){
 
-                    runAtdWorker({ layer: c.type, LngLatData });
+                    }
                 }
+ 
             });
+
+            
 
 
         }

@@ -3401,7 +3401,7 @@
                 initVertexColors$1(geometry, bottomColor, topColor);
                 material.vertexColors = getVertexColors();
             }
-            _this._createMesh(geometry, material);
+            _this._createLine2(geometry, material);
             var altitude = options.altitude;
             // const center = (isGeoJSON(lineString) ? getGeoJSONCenter(lineString) : lineString.getCenter());
             var z = layer.distanceToVector3(altitude, altitude).x;
@@ -4117,6 +4117,8 @@
             var topColor = options.topColor, bottomColor = options.bottomColor, altitude = options.altitude, asynchronous = options.asynchronous;
             var bufferGeometry;
             var extrudePolygons = [], faceMap = [], geometriesAttributes = [];
+            let vertDiffIdxList = {};
+            
             if (asynchronous) {
                 var actor = getActor();
                 bufferGeometry = getDefaultBufferGeometry();
@@ -4153,15 +4155,37 @@
                 var geometries = [];
                 var faceIndex = 0, psIndex = 0, normalIndex = 0, uvIndex = 0;
                 var altCache = {};
+                var difcn =0;
                 for (var i = 0; i < len; i++) {
+                    if(i==42){
+                        console.log('debug');
+                    }
                     var polygon = polygons[i];
                     var height = (isGeoJSONPolygon(polygon) ? polygon['properties'] : polygon.getProperties() || {}).height || 1;
+                    
                     var buffGeom = getExtrudeGeometryParams(polygon, height, layer, center, altCache);
-                    if(polygon.custom_altitude){
-                        for(var cc = 2; cc<buffGeom.position.length; cc+=3){
-                            buffGeom.position[cc] = buffGeom.position[cc] + polygon.custom_altitude;
+
+                    if(options.is3D){
+                        let _geoCnt = 0;
+                        if(polygon._geometries){
+                            _geoCnt = polygon._geometries[0]._coordinates.length;
+                        }else if(polygon._coordinates){
+                            _geoCnt = polygon._coordinates.length;
+                        }
+                        let allHolePoint = 0;
+                        let holes = polygon.getHoles();
+                        holes.forEach(h=>{
+                            allHolePoint+=h.length;
+                        });
+                        let _allGeoCnt = _geoCnt + allHolePoint;
+                        let _vertCnt = (_allGeoCnt*2 + _allGeoCnt*2*2)*3;
+                        if(_vertCnt != buffGeom.position.length){
+                            vertDiffIdxList[i] = i;
+                            difcn++;
+                            continue;
                         }
                     }
+                    
                     geometries.push(buffGeom);
                     // const extrudePolygon = new ExtrudePolygon(polygon, Object.assign({}, options, { height, index: i }), material, layer);
                     // extrudePolygons.push(extrudePolygon);
@@ -4172,7 +4196,7 @@
                     var psCount = position.length / 3, 
                     //  colorCount = buffGeom.attributes.color.count,
                     normalCount = normal.length / 3, uvCount = uv.length / 2;
-                    geometriesAttributes[i] = {
+                    geometriesAttributes.push( {
                         position: {
                             count: psCount,
                             start: psIndex,
@@ -4194,7 +4218,7 @@
                             end: uvIndex + uvCount * 2,
                         },
                         hide: false
-                    };
+                    });
                     psIndex += psCount * 3;
                     normalIndex += normalCount * 3;
                     // colorIndex += colorCount * 3;
@@ -4227,6 +4251,39 @@
                 _this._init();
             }
             _this.type = 'ExtrudePolygons';
+            
+            if(options.is3D){
+                let preStartIdx = 0;
+                for(var _i=0; _i<_this._datas.length; _i++){
+                    let diffIdx = vertDiffIdxList[_i];
+                    if(diffIdx){
+                        continue;
+                    }
+                    let allHolePoint = 0;
+                    let holes = _this._datas[_i].getHoles();
+                    holes.forEach(h=>{
+                        allHolePoint+=h.length;
+                    });
+
+                    let geoCnt = _this._datas[_i]._geometries[0]._coordinates.length;
+                    let allGeoCnt = geoCnt + allHolePoint;
+                    let vertCnt = (allGeoCnt*2 + allGeoCnt*2*2)*3;
+                    let custom_altitude = _this._datas[_i].properties.altitude;
+                    
+                    let startIdx = preStartIdx;
+                    let endIdx = startIdx + vertCnt;
+                    for(var j=startIdx+2; j<endIdx; j+=3){
+                        _this.object3d.geometry.attributes.position.array[j] += custom_altitude;
+                    }
+                    preStartIdx = endIdx;
+                }
+                _this.object3d.geometry.attributes.position.needsUpdate = true;
+                _this.object3d.geometry.computeBoundingBox();
+                _this.object3d.geometry.computeBoundingSphere();
+                
+            }
+            _this.vertDiffIdxList = vertDiffIdxList;
+            
             return _this;
         }
         // eslint-disable-next-line consistent-return
