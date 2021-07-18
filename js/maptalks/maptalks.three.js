@@ -4167,16 +4167,24 @@
 
                     if(options.is3D){
                         let _geoCnt = 0;
-                        if(polygon._geometries){
-                            _geoCnt = polygon._geometries[0]._coordinates.length;
-                        }else if(polygon._coordinates){
-                            _geoCnt = polygon._coordinates.length;
-                        }
                         let allHolePoint = 0;
-                        let holes = polygon.getHoles();
-                        holes.forEach(h=>{
-                            allHolePoint+=h.length;
-                        });
+
+                        if(polygon.type == 'MultiPolygon'){
+                            polygon.forEach(p=>{
+                                let mph = p.getHoles();
+                                mph.forEach(h=>{
+                                    allHolePoint+=h.length;
+                                });
+                                _geoCnt+=p._coordinates.length;
+                            });
+                        }else if(polygon.type == 'Polygon'){
+                            _geoCnt = polygon._coordinates.length;
+                            let holes = polygon.getHoles();
+                            holes.forEach(h=>{
+                                allHolePoint+=h.length;
+                            });
+                        }
+                        
                         let _allGeoCnt = _geoCnt + allHolePoint;
                         let _vertCnt = (_allGeoCnt*2 + _allGeoCnt*2*2)*3;
                         if(_vertCnt != buffGeom.position.length){
@@ -4259,22 +4267,35 @@
                     if(diffIdx){
                         continue;
                     }
+                    let _geoCnt = 0;
                     let allHolePoint = 0;
-                    let holes = _this._datas[_i].getHoles();
-                    holes.forEach(h=>{
-                        allHolePoint+=h.length;
-                    });
+                    let _polygon = _this._datas[_i];
 
-                    let geoCnt = _this._datas[_i]._geometries[0]._coordinates.length;
-                    let allGeoCnt = geoCnt + allHolePoint;
-                    let vertCnt = (allGeoCnt*2 + allGeoCnt*2*2)*3;
+                    if(_polygon.type == 'MultiPolygon'){
+                        _polygon.forEach(p=>{
+                            let mph = p.getHoles();
+                            mph.forEach(h=>{
+                                allHolePoint+=h.length;
+                            });
+                            _geoCnt+=p._coordinates.length;
+                        });
+                    }else if(_polygon.type == 'Polygon'){
+                        _geoCnt = _polygon._coordinates.length;
+                        let holes = _polygon.getHoles();
+                        holes.forEach(h=>{
+                            allHolePoint+=h.length;
+                        });
+                    }
+ 
+                    let _allGeoCnt = _geoCnt + allHolePoint;
+                    let vertCnt = (_allGeoCnt*2 + _allGeoCnt*2*2)*3;
                     let custom_altitude = _this._datas[_i].properties.altitude;
                     
                     let startIdx = preStartIdx;
                     let endIdx = startIdx + vertCnt;
-                    for(var j=startIdx+2; j<endIdx; j+=3){
-                        _this.object3d.geometry.attributes.position.array[j] += custom_altitude;
-                    }
+                    //for(var j=startIdx+2; j<endIdx; j+=3){
+                        //_this.object3d.geometry.attributes.position.array[j] += custom_altitude;
+                    //}
                     preStartIdx = endIdx;
                 }
                 _this.object3d.geometry.attributes.position.needsUpdate = true;

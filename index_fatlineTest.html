@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>fatline test,baseobject identify test</title>
+    <!-- <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/dat.gui@0.7.6/build/dat.gui.min.js"></script> -->
+    <link type="text/css" rel="stylesheet" href="https://cdn.jsdelivr.net/npm/maptalks/dist/maptalks.css">
+    <script type="text/javascript" src="/js/maptalks/maptalks_0.49.4.js"></script> 
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r127/three.js"></script>
+    <script type="text/javascript" src="/js/maptalks/maptalks.three.js"></script> 
+    <!--fatline script-->
+    <!-- https://threejs.org/examples/#webgl_lines_fat -->
+    <script type="text/javascript"
+        src="https://cdn.jsdelivr.net/npm/three@0.104.0/examples/js/lines/LineSegmentsGeometry.js"></script>
+    <script type="text/javascript"
+        src="https://cdn.jsdelivr.net/npm/three@0.104.0/examples/js/lines/LineGeometry.js"></script>
+    <script type="text/javascript"
+        src="https://cdn.jsdelivr.net/npm/three@0.104.0/examples/js/lines/WireframeGeometry2.js"></script>
+    <script type="text/javascript"
+        src="https://cdn.jsdelivr.net/npm/three@0.104.0/examples/js/lines/LineMaterial.js"></script>
+    <script type="text/javascript"
+        src="https://cdn.jsdelivr.net/npm/three@0.104.0/examples/js/lines/LineSegments2.js"></script>
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/three@0.104.0/examples/js/lines/Line2.js"></script>
+    <script type="text/javascript"
+        src="https://cdn.jsdelivr.net/npm/three@0.104.0/examples/js/lines/Wireframe.js"></script> 
+    <script type="text/javascript" src="/js/maptalks/geoutil.js"></script>
+    <style>
+        html,
+        body {
+            margin: 0px;
+            height: 100%;
+            width: 100%;
+        }
+
+        #map {
+            width: 100%;
+            height: 100%;
+            background-color: #000;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="map"></div>
+    <script>
+
+        var setillayerUrl = 'http://api.vworld.kr/req/wmts/1.0.0/' + 'D6200AF4-16B4-3161-BE8E-1CCDD332A8E3' + '/Satellite/{z}/{y}/{x}.jpeg';
+        var setilLayer = new maptalks.TileLayer('tile2', {
+            spatialReference: {
+                projection: 'EPSG:3857'
+                // other properties necessary for spatial reference
+            },
+            'urlTemplate': setillayerUrl
+        });
+
+        var map = new maptalks.Map("map", {
+            center: [129.15158, 35.15361],
+            zoom: 10,
+            maxZoom: 18,
+            minZoom: 9,
+            centerCross: true,
+            doubleClickZoom: false,
+            baseLayer: setilLayer,
+        });
+
+        // the ThreeLayer to draw buildings
+        var threeLayer = new maptalks.ThreeLayer('t', {
+            forceRenderOnMoving: true,
+            forceRenderOnRotating: true
+            // animation: true
+        });
+
+
+        threeLayer.prepareToDraw = function (gl, scene, camera) {
+            var light = new THREE.DirectionalLight(0xffffff);
+            light.position.set(0, -10, 10).normalize();
+            scene.add(light);
+            addLines();
+        };
+        threeLayer.addTo(map);
+        animation();
+
+        function animation() {
+            // layer animation support Skipping frames
+            threeLayer._needsUpdate = !threeLayer._needsUpdate;
+            if (threeLayer._needsUpdate) {
+                threeLayer.renderScene();
+            }
+            requestAnimationFrame(animation);
+        }
+
+        var lines;
+
+        //https://threejs.org/examples/#webgl_lines_fat
+        var material = new THREE.LineMaterial({
+            color: 0x00ffff,
+            // side: THREE.BackSide,
+            linewidth: 3 // in pixels
+            // vertexColors: THREE.VertexColors,
+            // dashed: false
+        });
+ 
+
+        function addLines() {
+            fetch('/test/lineTest.geojson').then(function (res) {
+                return res.json();
+            }).then(function (geojson) {
+                geojson = JSON.parse(geojson.geojson);
+
+                var lineStrings = maptalks.GeoJSON.toGeometry(geojson);
+                var timer = 'generate line time';
+                console.time(timer);
+                const line = threeLayer.toFatLines(lineStrings.slice(0, 1000), { interactive: false }, material);
+                threeLayer.addMesh(line);
+                 
+                console.timeEnd(timer);
+            })
+        }
+    </script>
+</body>
+
+</html>
