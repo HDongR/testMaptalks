@@ -209,9 +209,45 @@ class Terrain extends maptalks.BaseObject {
 }
 
 quake.viewMap = function(){
+  quake.setWorker();
   quake.setBaseLayer();
   quake.setThreeLayer();
   quake.set3DTile();
+  quake.setObjTile();
+}
+
+quake.setWorker = function(){
+  //custom worker
+  const workerKey = 'mvtfetch';
+  maptalks.registerWorkerAdapter(workerKey, function (exports, global) {
+      //will be called only for once when loaded in worker thread
+      exports.initialize = function () {
+          console.log('[worker] initialized');
+      };
+      //to receive message from main thread sent by maptalks.worker.Actor
+      exports.onmessage = function (message, postResponse) {
+          const data = message.data;
+          const { url } = data;
+          fetch(url).then(res => res.arrayBuffer()).then(arrayBuffer => {
+              postResponse(null, { data: arrayBuffer }, [arrayBuffer]);
+          }).catch(error => {
+              postResponse(null, {}, []);
+          });
+          //send message back to main thread
+          //the parameters:
+          //error, data, buffers (arraybuffers in data)
+          // postResponse(null, 'message from worker thread', null);
+      };
+  });
+  const actor = new maptalks.worker.Actor(workerKey);
+  actor.test = function (params) {
+      const { url, key, callback } = params;
+      this.send({ url }, null, (err, message) => {
+          callback(message);
+      });
+  }
+
+  quake.actor = actor;
 }
 
 quake.setBaseLayer = function() {
@@ -264,6 +300,7 @@ quake.setBaseLayer = function() {
 
 THREE.Loader.Handlers.add( /\.dds$/i, new THREE.DDSLoader() );
 var mtlLoaded = false;
+var isTxtLoaded = false;
 
 //three layer 생성
 quake.setThreeLayer = function(){
@@ -280,38 +317,6 @@ quake.setThreeLayer = function(){
     var light = new THREE.DirectionalLight(0xffffff);
     light.position.set(0, -10, 10).normalize();
     scene.add(light);
-    
-    var mtlLoader = new THREE.MTLLoader();
-    mtlLoader.setPath( '/tiles/obj/' );
-    mtlLoader.load( 'mtl_281396_113916.mtl', function( materials ) {
-        materials.preload();
-        //change to back side with THREE <= v0.94
-        // for (const p in materials.materials) {
-        //     //change material's side to BackSide
-        //     materials.materials[p].side = THREE.BackSide;
-        // }
-        var objLoader = new THREE.OBJLoader();
-        objLoader.setMaterials( materials );
-        objLoader.setPath( '/tiles/obj/' );
-        objLoader.load( 'obj file_281396_113916.obj', function ( object ) {
-            object.traverse( function ( child ) {
-                if ( child instanceof THREE.Mesh ) {
-                  child.scale.set(0.0066, 0.0066, 0.0066);
-                  //child.rotation.set(Math.PI * 1 / 2, -Math.PI * 1 / 2, 0);
-                }
-            });
-            var v = quake.threeLayer.coordinateToVector3({x:129.15087890625,y:35.1529541015625});
-            object.position.x = v.x;
-            object.position.y = v.y;
-            object.position.z = 0.3019727304665139;
-            //scene.add(object);
-
-           
-            mtlLoaded = true;
-            quake.threeLayer.renderScene();
-            quake.threeLayer.config('animation',true);
-        });
-    });
 
     animation();
   }
@@ -324,18 +329,148 @@ quake.setThreeLayer = function(){
   quake.threeLayer.draw = function () {
     if (mtlLoaded) {
         this.renderScene();
+    }else if(isTxtLoaded){
+      this.renderScene();
     }
   }
   
   quake.threeLayer.drawOnInteracting = function () {
     if (mtlLoaded) {
         this.renderScene();
+    }else if(isTxtLoaded){
+      this.renderScene();
     }
   }
 }
+async function getLatLonList(){
+  var directory = '/tiles/lonlatfile';
+  var xmlHttp = new XMLHttpRequest();
+  xmlHttp.open('GET', directory, false); // false for synchronous request
+  xmlHttp.send(null);
+  var ret = xmlHttp.responseText;
+  const toNodes = new DOMParser().parseFromString(ret, 'text/html').body.childNodes[2].nextElementSibling.childNodes[3];//.childNodes[1];
+  var k = 0;
+  let txtList = [];
+  toNodes.childNodes.forEach(el =>{
+    if(el.nodeName == 'LI'){
+      if(k > 0){
+        //console.log(el.childNodes[0].childNodes[0].innerHTML);
+        txtList.push(el.childNodes[0].childNodes[0].innerHTML);
+      }
+      k++;
+    }
+  });
+
+  let resultList = {};
+
+   
+  for (const txt of txtList) {
+    var cnt = 0;
+    await fetch('/tiles/lonlatfile/' + txt).then(res => res.text()).then(evadata => {
+      if(cnt == 0){
+        let data = evadata.split("\n");
+        let k = txt;
+        resultList[k] = data[0];
+        cnt++;
+      }
+    });
+  }
+
+  console.log('Done!');
+
+  return resultList;
+}
+
+quake.setObjTile = function(){
+  let resultList = getLatLonList();
+  resultList.then(r => {
+    var directory = '/tiles/obj';
+    var xmlHttp = new XMLHttpRequest();
+    xmlHttp.open('GET', directory, false); // false for synchronous request
+    xmlHttp.send(null);
+    var ret = xmlHttp.responseText;
+    const toNodes = new DOMParser().parseFromString(ret, 'text/html').body.childNodes[2].nextElementSibling.childNodes[3];//.childNodes[1];
+    var k = 0;
+    
+    let mtlList = [];
+    let objList = [];
+    let jpegList = [];
+    toNodes.childNodes.forEach(el =>{
+      if(el.nodeName == 'LI'){
+        if(k > 0){
+          //console.log(el.childNodes[0].childNodes[0].innerHTML);
+          let name = el.childNodes[0].childNodes[0].innerHTML;
+          var _lastDot = name.lastIndexOf('.');
+          let ext = name.substring(_lastDot, name.length);
+          if(ext == '.mtl'){
+            mtlList.push(name);
+          }else if(ext == '.obj'){
+            objList.push(name);
+          }else if(ext == '.jpeg'){
+            jpegList.push(name);
+          }
+        }
+        k++;
+      }
+    });
+    
+    let OBJLIST = [];
+    for(var i=0; i<mtlList.length; i++){
+      var m = mtlList[i];
+      var o = objList[i];
+      var j = jpegList[i];
+      OBJLIST.push({m, o, j});
+    }
+  
+    var mtlLoader = new THREE.MTLLoader();
+    
+    OBJLIST.forEach(OBJ => {
+      
+      mtlLoader.setPath( '/tiles/obj/' );
+      mtlLoader.load( OBJ.m, function( materials ) {
+        materials.preload();
+        //change to back side with THREE <= v0.94
+        for (const p in materials.materials) {
+            //change material's side to BackSide
+              //material.wireframe = true;
+            //materials.materials[p].wireframe = true;
+            //materials.materials[p].color = {r:255,g:0,b:0};
+        }
+        var objLoader = new THREE.OBJLoader();
+        objLoader.setMaterials( materials );
+        objLoader.setPath( '/tiles/obj/' );
+        //obj file_281394_113915.obj
+        var key = 'terrain file_' + OBJ.o.substring(9, 22) + '.txt';
+        objLoader.load( OBJ.o, function ( object ) {
+            object.traverse( function ( child ) {
+                if ( child instanceof THREE.Mesh ) {
+                  child.scale.set(0.0066, 0.0066, 0.0066);
+                  //child.rotation.set(Math.PI * 1 / 2, -Math.PI * 1 / 2, 0);
+                }
+            });
+
+            //var key = 
+            let k = r[key];
+            let lonlat = k.split(',');
+
+            var v = quake.threeLayer.coordinateToVector3({x:lonlat[0],y:lonlat[1]});
+            object.position.x = v.x;
+            object.position.y = v.y;
+            object.position.z = 0;//.0819727304665139;
+            quake.threeLayer._renderer.scene.add(object);
+  
+           
+            mtlLoaded = true;
+            quake.threeLayer.renderScene();
+            quake.threeLayer.config('animation',true);
+        });
+    });
+    });
+  });
+}
+
 
 var terrains = [];
-
 quake.set3DTile = function(){
 
   var directory = '/tiles/lonlatfile';
@@ -382,7 +517,7 @@ quake.set3DTile = function(){
     });
     console.log('txt');
   });
-  
+  isTxtLoaded = true;
   
 }
 
