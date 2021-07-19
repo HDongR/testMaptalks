@@ -112,7 +112,7 @@ function mergeAtdWorkerCallback(e) {
 
 function atdPostProcess(layer) {
     let rcvData = atdData.get(layer);
-
+    //let custom_altitude = _this._datas[_i].properties.altitude;
     let processData = new Map();
     for (var i = 0; i < rcvData.length; i++) {
         let rd = rcvData[i];
@@ -132,63 +132,140 @@ function atdPostProcess(layer) {
     }
 
     let childPos = -1;
-    for (var i = 0; i < quake.threeLayer._renderer.scene.children.length; i++) {
-        let c = quake.threeLayer._renderer.scene.children[i];
-        if (c.type == layer) {
-            childPos = i;
-            break;
-        }
-    }
-
-    // let c = quake.threeLayer._renderer.scene.children[childPos];
-    // let posCnt = c.geometry.attributes.position.count;
-    // for(var i=0; i<posCnt; i++){
-    //     c.geometry.attributes.position.setZ(i, 1);
-    // }
-    // c.geometry.attributes.position.needsUpdate = true;
-    // c.geometry.computeBoundingBox();
-    // c.geometry.computeBoundingSphere();
-
-    let allCnt = 0;
-    let endPos = 0;
-    for (var [key, value] of processData) {
-        let vcnt = value.length * 3 + ((value.length - 2) * 3);
-        allCnt += vcnt;
-
-        let idxCnt = (2 + ((value.length - 2) * 2));
-
-        let selIdx = 0;
-
-        for (var i = 0; i < value.length; i++) { //4개 18개 6
-            let vd = value[i];
-            let x = vd.x;
-            let y = vd.y;
-            let altitude = vd.altitude + 0.08;
-
-            let c = quake.threeLayer._renderer.scene.children[childPos];
-            let posCnt = c.geometry.attributes.position.count;
-            if (i == 0 || i == value.length - 1) {
-                c.geometry.attributes.position.setZ(selIdx + endPos, altitude);
-                selIdx++;
-            } else {
-                c.geometry.attributes.position.setZ(selIdx + endPos, altitude);
-                selIdx++;
-                c.geometry.attributes.position.setZ(selIdx + endPos, altitude);
-                selIdx++;
-            }
-            if (i == value.length - 1) {
-                endPos += (2 + ((value.length - 2) * 2));
+    const object3ds = quake.threeLayer.getMeshes();
+    for (var i = 0; i < object3ds.length; i++) {
+        let object3d = object3ds[i];
+        if (object3d.object3d) {
+            if (object3d.object3d.__parent) {
+                let o3 = object3d.object3d.__parent;
+                if (o3.customId == layer) {
+                    //mesh property에 altitude 넣기
+                    for(var j=0; j<o3._datas.length; j++){
+                        let _d = o3._datas[j];
+                        for(var z=0; z<_d._coordinates.length; z++){
+                            let _coord = _d._coordinates[z];
+                            _coord.altitude = processData.get(j)[z].altitude;
+                        }
+                    }
+                    childPos = i;
+                    break;
+                }
             }
         }
+    } 
+    let customId = layer.split('_');
+    if(customId[0] == 'line'){ 
+        let allCnt = 0;
+        let endPos = 0;
+        let c = object3ds[childPos];//quake.threeLayer._renderer.scene.children[childPos];
+        let geo = null;
+        if (c.geometry) {
+            geo = c.geometry;
+        } else if (c.object3d.geometry) {
+            geo = c.object3d.geometry;
+        }
 
+        for (var [key, value] of processData) {
+            let vcnt = value.length * 3 + ((value.length - 2) * 3);
+            allCnt += vcnt;
+
+            let idxCnt = (2 + ((value.length - 2) * 2));
+
+            let selIdx = 0;
+
+            for (var i = 0; i < value.length; i++) { //4개 18개 6
+                let vd = value[i];
+                let x = vd.x;
+                let y = vd.y;
+                let altitude = vd.altitude + 0.08;
+
+                let c = quake.threeLayer._renderer.scene.children[childPos];
+                let posCnt = geo.attributes.position.count;
+                if (i == 0 || i == value.length - 1) {
+                    geo.attributes.position.setZ(selIdx + endPos, altitude);
+                    selIdx++;
+                } else {
+                    geo.attributes.position.setZ(selIdx + endPos, altitude);
+                    selIdx++;
+                    geo.attributes.position.setZ(selIdx + endPos, altitude);
+                    selIdx++;
+                }
+                if (i == value.length - 1) {
+                    endPos += (2 + ((value.length - 2) * 2));
+                }
+            }
+
+        }
+        geo.attributes.position.needsUpdate = true;
+        geo.computeBoundingBox();
+        geo.computeBoundingSphere();
+    }else if(customId[0] == 'polygon'){
+        let allCnt = 0;
+        let endPos = 0;
+        let testEndCnt = 0;
+        let c = object3ds[childPos];//quake.threeLayer._renderer.scene.children[childPos];
+        let geo = null;
+        if (c.geometry) {
+            geo = c.geometry;
+        } else if (c.object3d.geometry) {
+            geo = c.object3d.geometry;
+        }
+        let posCnt = geo.attributes.position.count;
+
+        for (var [key, value] of processData) {
+            let _geoCnt = 0;
+            let allHolePoint = 0;
+            let _polygon = c._datas[key];
+            
+            if(_polygon.type == 'MultiPolygon'){
+                _polygon.forEach(p=>{
+                    let mph = p.getHoles();
+                    mph.forEach(h=>{
+                        allHolePoint+=h.length;
+                    });
+                    _geoCnt+=p._coordinates.length;
+                });
+            }else if(_polygon.type == 'Polygon'){
+                _geoCnt = _polygon._coordinates.length;
+                let holes = _polygon.getHoles();
+                holes.forEach(h=>{
+                    allHolePoint+=h.length;
+                });
+            }
+
+            let _allGeoCnt = _geoCnt + allHolePoint;
+            let vertCnt = _allGeoCnt*3;//(_allGeoCnt*2 + _allGeoCnt*2*2)*3;
+            allCnt += vertCnt;
+
+            let selIdx = 2;
+            
+            for (var i = 0; i < value.length; i++) {
+                let vd = value[i];
+                let x = vd.x;
+                let y = vd.y;
+                let altitude = vd.altitude + 0.08;
+
+                let zIdx = (i*3)+2;
+                geo.attributes.position.array[zIdx + endPos] = altitude;
+                
+                
+               // geo.attributes.position.array[selIdx + endPos] = altitude;
+                //selIdx += 3;
+                
+                if (i == value.length - 1) {
+                    endPos += vertCnt;
+                }
+            }
+
+        }
+ 
+        // for(var i=0; i<posCnt; i++){
+        //     geo.attributes.position.setZ(i, 1);
+        // }
+        geo.attributes.position.needsUpdate = true;
+        geo.computeBoundingBox();
+        geo.computeBoundingSphere();
     }
-
-    let c = quake.threeLayer._renderer.scene.children[childPos];
-
-    c.geometry.attributes.position.needsUpdate = true;
-    c.geometry.computeBoundingBox();
-    c.geometry.computeBoundingSphere();
-
 
     //quake.map.sortLayers(['d','d2']);
 
@@ -342,7 +419,7 @@ function loadLine(e) {
     }
 }
 
-var polygonMaterial = new THREE.MeshPhongMaterial({ color: 0x00ffff, transparent: true });
+var polygonMaterial = new THREE.MeshPhongMaterial({ color: 0x00ffff, transparent: true, wireframe:false });
 
 let polygonMeshs = [];
 
@@ -352,7 +429,7 @@ function loadPolygon(e) {
     let meshs = getMesh(customId);
     if (e.checked) {
         if (meshs && meshs.length > 0) {
-            meshs.forEach(m => { 
+            meshs.forEach(m => {
                 m.show();
             });
         } else {
@@ -360,22 +437,22 @@ function loadPolygon(e) {
                 return res.json();
             }).then(function (geojson) {
                 let polygons = [];
-        
+
                 geojson.features.forEach(feature => {
                     const geometry = feature.geometry;
                     const type = feature.geometry.type;
                     if (['Polygon', 'MultiPolygon'].includes(type)) {
-                        const height = 0.1;
+                        const height = 0;
                         const properties = feature.properties;
                         properties.height = height;
                         const polygon = maptalks.GeoJSON.toGeometry(feature);
                         polygon.setProperties(properties);
                         polygons.push(polygon);
                     }
-        
+
                 });
                 if (polygons.length > 0) {
-                    var mesh = quake.threeLayer.toExtrudePolygons(polygons.slice(0, Infinity), { topColor: '#fff', interactive: false, is3D:true }, polygonMaterial);
+                    var mesh = quake.threeLayer.toFlatPolygons(polygons.slice(0, Infinity), { topColor: '#fff', interactive: false, }, polygonMaterial);
                     mesh.customId = customId;
                     quake.threeLayer.addMesh(mesh);
                     polygonMeshs.push(mesh);
@@ -385,7 +462,7 @@ function loadPolygon(e) {
         }
     } else {
         if (meshs && meshs.length > 0) {
-            meshs.forEach(m => { 
+            meshs.forEach(m => {
                 m.hide();
             });
         }
@@ -745,7 +822,7 @@ quake.loadTerrain = async function (e) {
                             }
                         }
     
-                        runAtdWorker({ layer: c.type, LngLatData });
+                        runAtdWorker({ layer: c.__parent.customId, LngLatData });
                     }else if(customId == 'polygon'){
                         let LngLatData = [];
                         let pData = c.__parent._datas;
@@ -760,7 +837,7 @@ quake.loadTerrain = async function (e) {
                             }
                         }
     
-                        runAtdWorker({ layer: c.type, LngLatData });
+                        runAtdWorker({ layer: c.__parent.customId, LngLatData });
                     }else if(customId == 'point'){
 
                     }

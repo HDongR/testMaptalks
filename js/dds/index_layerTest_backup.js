@@ -181,7 +181,7 @@ function atdPostProcess(layer) {
                 let vd = value[i];
                 let x = vd.x;
                 let y = vd.y;
-                let altitude = vd.altitude + 0.16;
+                let altitude = vd.altitude + 0.2;
 
                 if (i == 0 || i == value.length - 1) {
                     geo.attributes.instanceStart.array[selIdx + endPos] = altitude;
