@@ -181,7 +181,7 @@ function atdPostProcess(layer) {
                 let vd = value[i];
                 let x = vd.x;
                 let y = vd.y;
-                let altitude = vd.altitude + 0.08;
+                let altitude = vd.altitude + 0.16;
 
                 if (i == 0 || i == value.length - 1) {
                     geo.attributes.instanceStart.array[selIdx + endPos] = altitude;
@@ -245,7 +245,7 @@ function atdPostProcess(layer) {
             }
 
             let _allGeoCnt = _geoCnt + allHolePoint;
-            let vertCnt = (_allGeoCnt*2 + _allGeoCnt*2*2)*3;
+            let vertCnt = _allGeoCnt*3;//(_allGeoCnt*2 + _allGeoCnt*2*2)*3;
             allCnt += vertCnt;
 
             let selIdx = 2;
@@ -254,11 +254,11 @@ function atdPostProcess(layer) {
                 let vd = value[i];
                 let x = vd.x;
                 let y = vd.y;
-                let altitude = vd.altitude + 0.4;
+                let altitude = vd.altitude + 0.08;
 
-                let topIdx = (i*3)+2;
-                geo.attributes.position.array[topIdx + endPos] = altitude;
-
+                let zIdx = (i*3)+2;
+                geo.attributes.position.array[zIdx + endPos] = altitude;
+                
                 
                // geo.attributes.position.array[selIdx + endPos] = altitude;
                 //selIdx += 3;
@@ -310,8 +310,8 @@ quake.setBaseLayer = function () {
     quake.map = new maptalks.Map("map", {
         center: [129.15158, 35.15361],
         zoom: 10,
-        maxZoom: 18,
-        minZoom: 9,
+        //maxZoom: 18,
+        //minZoom: 9,
         centerCross: true,
         doubleClickZoom: false,
         baseLayer: setilLayer,
@@ -374,9 +374,10 @@ var lineMaterial = new THREE.LineMaterial({
     transparent: true,
     // vertexColors: THREE.VertexColors,
     // side: THREE.BackSide,
-    linewidth: 2 // in pixels
+    linewidth: 3, // in pixels
     // vertexColors: THREE.VertexColors,
-    // dashed: false
+    // dashed: false,
+    wireframe: false,
 });
 
 // var lineMaterial = new THREE.LineBasicMaterial({
@@ -460,7 +461,7 @@ function loadLine(e) {
     }
 }
 
-var polygonMaterial = new THREE.MeshPhongMaterial({ color: 0x00ffff, transparent: true, wireframe:true });
+var polygonMaterial = new THREE.MeshPhongMaterial({ color: 0x00ffff, transparent: true, wireframe:false });
 
 let polygonMeshs = [];
 
@@ -483,7 +484,7 @@ function loadPolygon(e) {
                     const geometry = feature.geometry;
                     const type = feature.geometry.type;
                     if (['Polygon', 'MultiPolygon'].includes(type)) {
-                        const height = 10;
+                        const height = 0;
                         const properties = feature.properties;
                         properties.height = height;
                         const polygon = maptalks.GeoJSON.toGeometry(feature);
@@ -493,7 +494,7 @@ function loadPolygon(e) {
 
                 });
                 if (polygons.length > 0) {
-                    var mesh = quake.threeLayer.toExtrudePolygons(polygons.slice(0, 43), { topColor: '#fff', interactive: false, }, polygonMaterial);
+                    var mesh = quake.threeLayer.toFlatPolygons(polygons.slice(0, Infinity), { topColor: '#fff', interactive: false, }, polygonMaterial);
                     mesh.customId = customId;
                     quake.threeLayer.addMesh(mesh);
                     polygonMeshs.push(mesh);
@@ -799,7 +800,7 @@ function initGui() {
         });
     });
     gui.add(params, 'opacity', 0, 1).onChange(function () {
-        lineMaterial.opacity = params.opacity;
+        lineMaterial.uniforms.opacity.value = (params.opacity);
         lines.forEach(function (mesh) {
             mesh.setSymbol(lineMaterial);
         });
@@ -946,6 +947,18 @@ quake.loadTerrain = async function (e) {
 
                                 LngLatData.push({ i, x, y });
                             }
+                            if(p._holes){
+                                for (var h = 0; h < p._holes.length; h++){
+                                    for (var j = 0; j < p._holes[h].length; j++) {
+                                        let coord = p._holes[h][j];
+                                        let x = coord.x;
+                                        let y = coord.y;
+
+                                        LngLatData.push({ i, x, y });
+                                    }
+                                }
+                            }
+                            
                         }
 
                         runAtdWorker({ layer: c.__parent.customId, LngLatData });

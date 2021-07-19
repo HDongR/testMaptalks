@@ -2302,6 +2302,42 @@
       }
     }
 
+    //커스텀 추가분6
+    function addTop(_ref2, out, cursors, opts) {
+        var indices = _ref2.indices,
+            vertices = _ref2.vertices,
+            topVertices = _ref2.topVertices,
+            rect = _ref2.rect,
+            depth = _ref2.depth;
+  
+        if (vertices.length <= 4) {
+          return;
+        }
+  
+        var vertexOffset = cursors.vertex; // Top indices
+  
+        var indicesLen = indices.length;
+  
+        for (var i = 0; i < indicesLen; i++) {
+          out.indices[cursors.index++] = vertexOffset + indices[i];
+        }
+  
+        var size = Math.max(rect.width, rect.height); // Top and bottom vertices
+  
+        for (var k = 0; k < 1; k++) {
+          for (var _i4 = 0; _i4 < topVertices.length; _i4 += 2) {
+            var x = topVertices[_i4];
+            var y = topVertices[_i4 + 1];
+            out.position[cursors.vertex * 3] = x;
+            out.position[cursors.vertex * 3 + 1] = y;
+            out.position[cursors.vertex * 3 + 2] = (1 - k) * depth;
+            out.uv[cursors.vertex * 2] = (x - rect.x) / size;
+            out.uv[cursors.vertex * 2 + 1] = (y - rect.y) / size;
+            cursors.vertex++;
+          }
+        } 
+    }
+
     function innerExtrudeTriangulatedPolygon(preparedData, opts) {
       var indexCount = 0;
       var vertexCount = 0;
@@ -2386,6 +2422,91 @@
 
       data.boundingRect = preparedData[0] && preparedData[0].rect;
       return data;
+    }
+
+    //커스텀 추가분5
+    function innerFlatTriangulatedPolygon(preparedData, opts) {
+        var indexCount = 0;
+        var vertexCount = 0;
+  
+        for (var p = 0; p < preparedData.length; p++) {
+          var _preparedData$p = preparedData[p],
+              indices = _preparedData$p.indices,
+              vertices = _preparedData$p.vertices,
+              holes = _preparedData$p.holes,
+              depth = _preparedData$p.depth;
+          var polygonVertexCount = vertices.length / 2;
+          indexCount += indices.length;
+          vertexCount += polygonVertexCount;
+          var ringCount = 2;
+          var start = 0;
+          var end = 0;
+  
+          for (var h = 0; h < (holes ? holes.length : 0) + 1; h++) {
+            if (h === 0) {
+              end = holes && holes.length ? holes[0] : polygonVertexCount;
+            } else {
+              start = holes[h - 1];
+              end = holes[h] || polygonVertexCount;
+            }
+  
+            //indexCount += (end - start) * 6 * (ringCount - 1);
+            //var sideRingVertexCount = (end - start) * (opts.smoothSide ? 1 : 2);
+            //vertexCount += sideRingVertexCount * ringCount // Double the bevel vertex number if not smooth
+            //+ (!opts.smoothBevel ? bevelSegments * sideRingVertexCount * 2 : 0);
+          }
+        }
+  
+        var data = {
+          position: new Float32Array(vertexCount * 3),
+          indices: new (vertexCount > 0xffff ? Uint32Array : Uint16Array)(indexCount),
+          uv: new Float32Array(vertexCount * 2)
+        };
+        var cursors = {
+          vertex: 0,
+          index: 0
+        };
+  
+        for (var d = 0; d < preparedData.length; d++) {
+          addTop(preparedData[d], data, cursors, opts);
+        }
+  
+        // for (var _d = 0; _d < preparedData.length; _d++) {
+        //   var _preparedData$_d = preparedData[_d],
+        //       _holes = _preparedData$_d.holes,
+        //       _vertices = _preparedData$_d.vertices;
+        //   var topVertexCount = _vertices.length / 2;
+        //   var _start = 0;
+  
+        //   var _end = _holes && _holes.length ? _holes[0] : topVertexCount; // Add exterior
+  
+  
+        //   addExtrudeSide(data, preparedData[_d], _start, _end, cursors, opts); // Add holes
+  
+        //   if (_holes) {
+        //     for (var _h = 0; _h < _holes.length; _h++) {
+        //       _start = _holes[_h];
+        //       _end = _holes[_h + 1] || topVertexCount;
+        //       addExtrudeSide(data, preparedData[_d], _start, _end, cursors, opts);
+        //     }
+        //   }
+        // } // Wrap uv
+  
+  
+        for (var i = 0; i < data.uv.length; i++) {
+          var val = data.uv[i];
+  
+          if (val > 0 && Math.round(val) === val) {
+            data.uv[i] = 1;
+          } else {
+            data.uv[i] = val % 1;
+          }
+        }
+  
+        data.normal = generateNormal(data.indices, data.position); // PENDING
+  
+        data.boundingRect = preparedData[0] && preparedData[0].rect;
+        return data;
     }
 
     function convertPolylineToTriangulatedPolygon(polyline, polylineIdx, opts) {
@@ -2606,6 +2727,83 @@
       }
 
       return innerExtrudeTriangulatedPolygon(preparedData, opts);
+    }
+
+    //커스텀 추가분4
+    function flatPolygon(polygons, opts) {
+        opts = Object.assign({}, opts);
+        var min = [Infinity, Infinity];
+        var max = [-Infinity, -Infinity];
+  
+        for (var i = 0; i < polygons.length; i++) {
+          updateBoundingRect(polygons[i][0], min, max);
+        }
+  
+        opts.boundingRect = opts.boundingRect || {
+          x: min[0],
+          y: min[1],
+          width: max[0] - min[0],
+          height: max[1] - min[1]
+        };
+        normalizeOpts(opts);
+        var preparedData = [];
+        var translate = opts.translate || [0, 0];
+        var scale = opts.scale || [1, 1];
+        var boundingRect = opts.boundingRect;
+        var transformdRect = {
+          x: boundingRect.x * scale[0] + translate[0],
+          y: boundingRect.y * scale[1] + translate[1],
+          width: boundingRect.width * scale[0],
+          height: boundingRect.height * scale[1]
+        };
+        var epsilon = Math.min(boundingRect.width, boundingRect.height) / 1e5;
+  
+        for (var _i9 = 0; _i9 < polygons.length; _i9++) {
+          var newPolygon = removeClosePointsOfPolygon(polygons[_i9], epsilon);
+  
+          if (!newPolygon) {
+            continue;
+          }
+  
+          var simplifyTolerance = opts.simplify / Math.max(scale[0], scale[1]);
+  
+          if (simplifyTolerance > 0) {
+            newPolygon = simplifyPolygon(newPolygon, simplifyTolerance);
+          }
+  
+          if (!newPolygon) {
+            continue;
+          }
+  
+          var _earcut$flatten = earcut_1.flatten(newPolygon),
+              vertices = _earcut$flatten.vertices,
+              holes = _earcut$flatten.holes,
+              dimensions = _earcut$flatten.dimensions;
+  
+          for (var k = 0; k < vertices.length;) {
+            vertices[k] = vertices[k++] * scale[0] + translate[0];
+            vertices[k] = vertices[k++] * scale[1] + translate[1];
+          }
+  
+          convertToClockwise(vertices, holes);
+  
+          if (dimensions !== 2) {
+            throw new Error('Only 2D polygon points are supported');
+          }
+  
+          var topVertices = opts.bevelSize > 0 ? offsetPolygon(vertices, holes, opts.bevelSize, null, true) : vertices;
+          var indices = triangulate(topVertices, holes, dimensions);
+          preparedData.push({
+            indices: indices,
+            vertices: vertices,
+            topVertices: topVertices,
+            holes: holes,
+            rect: transformdRect,
+            depth: 0
+          });
+        }
+  
+        return innerFlatTriangulatedPolygon(preparedData, opts);
     }
     /**
      *
@@ -3237,6 +3435,22 @@
             height = layer.distanceToVector3(height, height).x;
         }
         var _a = extrudePolygon(shapes, {
+            depth: height
+        }), position = _a.position, normal = _a.normal, uv = _a.uv, indices = _a.indices;
+        return {
+            position: position, normal: normal, uv: uv, indices: indices
+        };
+    }
+
+    //커스텀 추가분3
+    function getFlatGeometryParams(polygon, height, layer, center, altCache) {
+        var datas = getPolygonPositions(polygon, layer, center);
+        var shapes = datas;
+        //Possible later use of geojson
+        if (!shapes)
+            return null;
+
+        var _a = flatPolygon(shapes, {
             depth: height
         }), position = _a.position, normal = _a.normal, uv = _a.uv, indices = _a.indices;
         return {
@@ -4328,6 +4542,210 @@
             return this.picked;
         };
         return ExtrudePolygons;
+    }(MergedMixin(BaseObject)));
+
+    //커스텀 추가분2
+    var OPTIONS$99 = {
+        altitude: 0,
+        height: 0,
+        topColor: null,
+        bottomColor: '#ffffff',
+    };
+    var FlatPolygons = /** @class */ (function (_super) {
+        __extends(FlatPolygons, _super);
+        function FlatPolygons(polygons, options, material, layer) {
+            var _this = this;
+            if (!Array.isArray(polygons)) {
+                polygons = [polygons];
+            }
+            var len = polygons.length;
+            if (len === 0) {
+                console.error('polygons is empty');
+            }
+            // const centers = [];
+            var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+            for (var i = 0; i < len; i++) {
+                var polygon = polygons[i];
+                var center_1 = (polygon.getCenter ? polygon.getCenter() : getGeoJSONCenter(polygon));
+                var x = void 0, y = void 0;
+                if (Array.isArray(center_1)) {
+                    x = center_1[0];
+                    y = center_1[1];
+                }
+                else if (center_1 instanceof maptalks.Coordinate) {
+                    x = center_1.x;
+                    y = center_1.y;
+                }
+                minX = Math.min(minX, x);
+                minY = Math.min(minY, y);
+                maxX = Math.max(maxX, x);
+                maxY = Math.max(maxY, y);
+            }
+            // Get the center point of the point set
+            var center = new maptalks.Coordinate((minX + maxX) / 2, (minY + maxY) / 2);
+            options = maptalks.Util.extend({}, OPTIONS$99, options, { layer: layer, polygons: polygons, coordinate: center });
+            var topColor = options.topColor, bottomColor = options.bottomColor, altitude = options.altitude, asynchronous = options.asynchronous;
+            var bufferGeometry;
+            var flatPolygons = [], faceMap = [], geometriesAttributes = [];
+            let vertDiffIdxList = {};
+             
+            var geometries = [];
+            var faceIndex = 0, psIndex = 0, normalIndex = 0, uvIndex = 0;
+            var altCache = {};
+            var difcn =0;
+            for (var i = 0; i < len; i++) {
+                if(i==42){
+                    console.log('debug');
+                }
+                var polygon = polygons[i];
+                var height = (isGeoJSONPolygon(polygon) ? polygon['properties'] : polygon.getProperties() || {}).height || 0;
+                
+                var buffGeom = getFlatGeometryParams(polygon, height, layer, center, altCache);
+
+                if(options.is3D){
+                    let _geoCnt = 0;
+                    let allHolePoint = 0;
+
+                    if(polygon.type == 'MultiPolygon'){
+                        polygon.forEach(p=>{
+                            let mph = p.getHoles();
+                            mph.forEach(h=>{
+                                allHolePoint+=h.length;
+                            });
+                            _geoCnt+=p._coordinates.length;
+                        });
+                    }else if(polygon.type == 'Polygon'){
+                        _geoCnt = polygon._coordinates.length;
+                        let holes = polygon.getHoles();
+                        holes.forEach(h=>{
+                            allHolePoint+=h.length;
+                        });
+                    }
+                    
+                    let _allGeoCnt = _geoCnt + allHolePoint;
+                    let _vertCnt = (_allGeoCnt*2 + _allGeoCnt*2*2)*3;
+                    if(_vertCnt != buffGeom.position.length){
+                        vertDiffIdxList[i] = i;
+                        difcn++;
+                        continue;
+                    }
+                }
+                
+                geometries.push(buffGeom);
+                // const extrudePolygon = new ExtrudePolygon(polygon, Object.assign({}, options, { height, index: i }), material, layer);
+                // extrudePolygons.push(extrudePolygon);
+                var position = buffGeom.position, normal = buffGeom.normal, uv = buffGeom.uv, indices = buffGeom.indices;
+                var faceLen = indices.length / 3;
+                faceMap[i] = [faceIndex + 1, faceIndex + faceLen];
+                faceIndex += faceLen;
+                var psCount = position.length / 3, 
+                //  colorCount = buffGeom.attributes.color.count,
+                normalCount = normal.length / 3, uvCount = uv.length / 2;
+                geometriesAttributes.push( {
+                    position: {
+                        count: psCount,
+                        start: psIndex,
+                        end: psIndex + psCount * 3,
+                    },
+                    normal: {
+                        count: normalCount,
+                        start: normalIndex,
+                        end: normalIndex + normalCount * 3,
+                    },
+                    // color: {
+                    //     count: colorCount,
+                    //     start: colorIndex,
+                    //     end: colorIndex + colorCount * 3,
+                    // },
+                    uv: {
+                        count: uvCount,
+                        start: uvIndex,
+                        end: uvIndex + uvCount * 2,
+                    },
+                    hide: false
+                });
+                psIndex += psCount * 3;
+                normalIndex += normalCount * 3;
+                // colorIndex += colorCount * 3;
+                uvIndex += uvCount * 2;
+            }
+            bufferGeometry = mergeBufferGeometries(geometries);
+            if (topColor) {
+                initVertexColors$1(bufferGeometry, bottomColor, topColor);
+                material.vertexColors = getVertexColors();
+            }
+            
+            _this = _super.call(this) || this;
+            _this._initOptions(options);
+            _this._createMesh(bufferGeometry, material);
+            var z = layer.distanceToVector3(altitude, altitude).x;
+            var v = layer.coordinateToVector3(center, z);
+            _this.getObject3d().position.copy(v);
+            //Face corresponding to monomer
+            _this._faceMap = faceMap;
+            _this._baseObjects = flatPolygons;
+            _this._datas = polygons;
+            _this._geometriesAttributes = geometriesAttributes;
+            _this.faceIndex = null;
+            _this._geometryCache = bufferGeometry.clone();
+            _this.isHide = false;
+            _this._colorMap = {};
+            _this._initBaseObjectsEvent(flatPolygons);
+            if (!asynchronous) {
+                _this._setPickObject3d();
+                _this._init();
+            }
+            _this.type = 'FlatPolygons';
+            
+            if(options.is3D){
+                let preStartIdx = 0;
+                for(var _i=0; _i<_this._datas.length; _i++){
+                    let diffIdx = vertDiffIdxList[_i];
+                    if(diffIdx){
+                        continue;
+                    }
+                    let _geoCnt = 0;
+                    let allHolePoint = 0;
+                    let _polygon = _this._datas[_i];
+
+                    if(_polygon.type == 'MultiPolygon'){
+                        _polygon.forEach(p=>{
+                            let mph = p.getHoles();
+                            mph.forEach(h=>{
+                                allHolePoint+=h.length;
+                            });
+                            _geoCnt+=p._coordinates.length;
+                        });
+                    }else if(_polygon.type == 'Polygon'){
+                        _geoCnt = _polygon._coordinates.length;
+                        let holes = _polygon.getHoles();
+                        holes.forEach(h=>{
+                            allHolePoint+=h.length;
+                        });
+                    }
+ 
+                    let _allGeoCnt = _geoCnt + allHolePoint;
+                    let vertCnt = (_allGeoCnt*2 + _allGeoCnt*2*2)*3;
+                    let custom_altitude = _this._datas[_i].properties.altitude;
+                    
+                    let startIdx = preStartIdx;
+                    let endIdx = startIdx + vertCnt;
+                    //for(var j=startIdx+2; j<endIdx; j+=3){
+                        //_this.object3d.geometry.attributes.position.array[j] += custom_altitude;
+                    //}
+                    preStartIdx = endIdx;
+                }
+                _this.object3d.geometry.attributes.position.needsUpdate = true;
+                _this.object3d.geometry.computeBoundingBox();
+                _this.object3d.geometry.computeBoundingSphere();
+                
+            }
+            _this.vertDiffIdxList = vertDiffIdxList;
+            
+            return _this;
+        }
+
+        return FlatPolygons;
     }(MergedMixin(BaseObject)));
 
     //Using cache to reduce computation
@@ -7231,6 +7649,18 @@
         ThreeLayer.prototype.toExtrudePolygons = function (polygons, options, material) {
             return new ExtrudePolygons(polygons, options, material, this);
         };
+
+        /**커스텀 추가분1
+         * 
+         * @param {*} coordinate 
+         * @param {*} options 
+         * @param {*} material 
+         * @returns 
+         */
+        ThreeLayer.prototype.toFlatPolygons = function (polygons, options, material) {
+            return new FlatPolygons(polygons, options, material, this);
+        };
+
         /**
          *
          * @param {maptalks.Coordinate} coordinate
