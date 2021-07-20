@@ -41,6 +41,14 @@
         <link rel="stylesheet" href="/css/base.css">
         <link rel="stylesheet" href="/css/fontawesome-all.min.css">
         <script type="text/javascript" src="/js/three/LineMaterial.js"></script>
+        <script type="text/javascript" src="/js/three/shaders/CopyShader.js"></script>
+        <script type="text/javascript" src="/js/three/shaders/FXAAShader.js"></script>
+        <script type="text/javascript" src="/js/three/postprocessing/EffectComposer.js"></script>
+        <script type="text/javascript" src="/js/three/postprocessing/MaskPass.js"></script>
+        <script type="text/javascript" src="/js/three/postprocessing/OutlinePass.js"></script>
+        <script type="text/javascript" src="/js/three/postprocessing/Pass.js"></script>
+        <script type="text/javascript" src="/js/three/postprocessing/RenderPass.js"></script>
+        <script type="text/javascript" src="/js/three/postprocessing/ShaderPass.js"></script>
     </head>
     <body>
         <div id="map" class="container">
@@ -55,7 +63,7 @@
         <!-- <canvas id="c" width="1024" height="700"></div> -->
     </body>
 
-    <script type="text/javascript" src="/js/dds/index_layerTest_backup.js"></script>
+    <script type="text/javascript" src="/js/dds/index_layerTest_outline.js"></script>
     <script>quake.viewMap();</script>
     <!-- <script type="module" src="js/test.js"></script> -->
     <script type="module">

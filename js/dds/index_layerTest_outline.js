@@ -7,6 +7,12 @@ var stats = null;
 var infoWindow;
 quake.infoWindow = infoWindow;
 
+let composer, effectFXAA, outlinePass;
+
+let selectedObjects = [];
+
+
+
 let hardwareConcurrency = typeof window !== 'undefined' ? window.navigator.hardwareConcurrency || 4 : 0;
 let atdWorkerCount = Math.max(Math.floor(hardwareConcurrency / 2), 1);
 let currentAtdWorkerQueue = 0;
@@ -321,7 +327,7 @@ quake.viewMap = function () {
 
     quake.sortLayers();
 
-    //animation();
+    animation();
 
     initGui();
 }
@@ -354,7 +360,6 @@ quake.setBaseLayer = function () {
 //three layer 생성
 quake.setThreeLayer = function () {
     quake.threeLayer = new maptalks.ThreeLayer('threelayer', {
-        forceRenderOnZooming: false,
         forceRenderOnMoving: false,
         forceRenderOnRotating: false
     });
@@ -369,6 +374,23 @@ quake.setThreeLayer = function () {
         var light = new THREE.DirectionalLight(0xffffff);
         light.position.set(0, -10, 10).normalize();
         scene.add(light);
+
+        composer = new THREE.EffectComposer( gl );
+
+        const renderPass = new THREE.RenderPass( scene, camera );
+        composer.addPass( renderPass );
+
+        outlinePass = new THREE.OutlinePass( new THREE.Vector2( window.innerWidth, window.innerHeight ), scene, camera );
+        outlinePass.usePatternTexture = true;
+        outlinePass.hiddenEdgeColor.set(1);
+
+
+        composer.addPass( outlinePass );
+        effectFXAA = new THREE.ShaderPass( THREE.FXAAShader );
+        effectFXAA.uniforms[ 'resolution' ].value.set( 1 / window.innerWidth, 1 / window.innerHeight );
+        composer.addPass( effectFXAA );
+
+        window.addEventListener( 'resize', onWindowResize );
     }
 
     quake.threeLayer.addTo(quake.map);
@@ -377,6 +399,18 @@ quake.setThreeLayer = function () {
     //update();
 }
 
+function onWindowResize(){
+    const width = window.innerWidth;
+    const height = window.innerHeight;
+
+    // camera.aspect = width / height;
+    // camera.updateProjectionMatrix();
+
+    // renderer.setSize( width, height );
+    composer.setSize( width, height );
+
+    effectFXAA.uniforms[ 'resolution' ].value.set( 1 / window.innerWidth, 1 / window.innerHeight );
+}
 
 quake.sortLayers = function () {
     //let sortLayers = []; 
@@ -400,6 +434,11 @@ function animation() {
     if (stats) {
         stats.update();
     }
+
+    if(composer){
+        composer.render();
+    }
+    
     requestAnimationFrame(animation);
 }
 
@@ -465,6 +504,7 @@ function loadLine(e) {
                 mesh.customId = customId;
                 lines.push(mesh);
                 quake.threeLayer.addMesh(mesh);
+                selectedObjects.push(mesh.object3d);
 
                 if(quake.is3D){
                     if (customId == 'line_' + seq) {
@@ -530,66 +570,24 @@ async function loadPolygon(e) {
             if (polygons.length > 0) {
                 let custom_style_res = await fetch('/test/custom_style1.json');
                 let custom_style = await custom_style_res.json();
-                let texture = canvas2ImgTexture(custom_style);
-                polygonMaterial.map = texture;
+                let dataUrl = canvas2ImgUrl(custom_style);
+                textureLoader.load( dataUrl, function ( texture ) {
+
+					outlinePass.patternTexture = texture;
+					texture.wrapS = THREE.RepeatWrapping;
+					texture.wrapT = THREE.RepeatWrapping;
+
+				} );
+                
 
                 
                 var mesh = quake.threeLayer.toFlatPolygons(polygons.slice(0, Infinity), { topColor: '#fff', interactive: false, }, polygonMaterial);
-             
                 mesh.customId = customId;
                 quake.threeLayer.addMesh(mesh);
                 polygonMeshs.push(mesh);
-
-                const outlineM = new THREE.LineBasicMaterial({color: 0x000000});
-
-                //let outlines = [];
-                //let geometries = [];
-                const Group = new THREE.Group();
-                for(var kk=0; kk<polygons.length; kk++){
-                    let poly = polygons[kk];
-                    let ct = poly.getCenter();
-                    const points = [];
-                    for(var pp=0; pp<poly._coordinates.length; pp++){
-                        let cc = poly._coordinates[pp];
-                        let xx = cc.x;
-                        let yy = cc.y;
-                        let vt3 = quake.threeLayer.coordinateToVector3(new maptalks.Coordinate(xx, yy));
-                        points.push( new THREE.Vector3(vt3.x, vt3.y, 0 ) );
-                    }
-                    const geogeo = new THREE.BufferGeometry().setFromPoints( points );
-                    //geometries.push(geogeo);
-                    const line = new THREE.LineLoop( geogeo, outlineM );
-                    Group.add(line);
-
-                    let holes = poly.getHoles();
-                    if(holes && holes.length > 0){
-                        for(var hh=0; hh<holes.length; hh++){
-                            let hl = holes[hh];
-                            const holePoints = [];
-                            for(hc=0; hc<hl.length; hc++){
-                                let cc = hl[hc];
-                                let xx = cc.x;
-                                let yy = cc.y;
-                                let vt3 = quake.threeLayer.coordinateToVector3(new maptalks.Coordinate(xx, yy));
-                                holePoints.push( new THREE.Vector3(vt3.x, vt3.y, 0 ) );
-                            }
-                            const hole_geogeo = new THREE.BufferGeometry().setFromPoints( holePoints );
-                            //geometries.push(geogeo);
-                            const hole_line = new THREE.LineLoop( hole_geogeo, outlineM );
-                            Group.add(hole_line);
-                        }
-                    }
-                   // outlines.push(line);
-                }
-                //let bufferGeometry = BufferGeometryUtils.mergeBufferGeometries(geometries);
-                //const line = new THREE.Line( bufferGeometry, outlineM );
-                quake.threeLayer.addMesh(Group);
-                
-
-                
-
-
                 polygons.length = 0;
+                selectedObjects.push(mesh.object3d);
+                outlinePass.selectedObjects = selectedObjects;
             } 
         }
     } else {
@@ -599,6 +597,107 @@ async function loadPolygon(e) {
             });
         }
     }
+}
+
+
+function canvas2ImgUrl(isCustom){
+    const patternCanvas = document.createElement('canvas');
+    const patternContext = patternCanvas.getContext('2d');
+    if(isCustom.what == 'hatch'){
+        var wh = Number(isCustom.size.wh);
+        var barWidth = Number(isCustom.size.barWidth);
+        var type = isCustom.size.type;
+        
+        patternCanvas.width = wh; //이미지 컨테이너 가로길이
+        patternCanvas.height = wh; //이미지 켄터이너 세로길이
+        var dg = Math.sqrt((wh*wh)+(wh*wh)); //대각선길이
+        var rect={ x:(wh/2)-barWidth/2, y:(wh - dg)/2, width:barWidth, height:dg };
+        patternContext.fillStyle = '#ffffff'; //배경
+        patternContext.fillRect(0, 0, patternCanvas.width, patternCanvas.height); //배경그리기
+        
+        patternContext.translate(wh/2, wh/2);
+        
+        var angle = 45;
+        if(type == "\\"){
+          angle = 45;
+        }else if(type == "/"){
+          angle = 135;
+        }else if(type == "X"){
+          angle = 45;
+        }
+        
+        patternContext.rotate( -(Math.PI / 180) * angle );
+        patternContext.translate(-wh/2, -wh/2);
+        
+        patternContext.fillStyle = isCustom.hatchColor;
+        //patternContext.globalAlpha = Number(isCustom.opacity);
+        patternContext.fillRect( rect.x, rect.y, rect.width, rect.height );
+        
+        if(type == "\\" || type == "/"){
+            patternContext.fillRect((wh - dg)/2 - barWidth/2, (wh/2) - (barWidth/2), barWidth, barWidth); //왼쪽하단
+            patternContext.fillRect((wh + dg)/2 - barWidth/2, (wh/2) - (barWidth/2), barWidth, barWidth); //오른쪽상단
+        }else if(type == "X"){
+          patternContext.restore();
+          patternContext.translate(wh/2, wh/2);
+          patternContext.rotate( -(Math.PI / 180) * 90 );
+          patternContext.translate(-wh/2, -wh/2);
+          patternContext.fillRect( rect.x, rect.y, rect.width, rect.height );
+        }
+        
+    } else if(isCustom.what == 'dot'){
+        var wh = Number(isCustom.size.wh);
+        var offset = Number(isCustom.size.offset);
+        var radius = Number(isCustom.size.radius);
+        patternCanvas.width = wh + offset; //이미지 컨테이너 가로길이
+        patternCanvas.height = wh + offset; //이미지 켄터이너 세로길이
+        patternContext.beginPath();
+        patternContext.arc(wh/2, wh/2, radius, 0, Math.PI * 2, true);
+        patternContext.fillStyle = isCustom.dotColor;
+        //patternContext.globalAlpha = Number(isCustom.opacity);
+        patternContext.fill();
+    }
+    
+    // var canvas=document.createElement('canvas');
+    // var ctx=canvas.getContext("2d");
+    // ctx.fillStyle=ctx.createPattern(patternCanvas,'repeat');
+    // ctx.fillRect(0,0,1200,1200);
+
+    const texture = new THREE.CanvasTexture(patternContext.canvas);
+    //texture.wrapS = THREE.RepeatWrapping;
+    //texture.wrapT = THREE.RepeatWrapping;
+    //texture.repeat.set( 50, 50 );
+    
+    //const texture = new THREE.CanvasTexture(ctx.canvas);
+
+//     NearestFilter: THREE.NearestFilter,
+//     NearestMipMapLinearFilter: THREE.NearestMipMapLinearFilter,
+//     NearestMipMapNearestFilter: THREE.NearestMipMapNearestFilter,
+//     'LinearFilter ': THREE.LinearFilter,
+//     'LinearMipMapLinearFilter (Default)': THREE.LinearMipMapLinearFilter,
+//     LinearMipmapNearestFilter: THREE.LinearMipmapNearestFilter,
+//      },
+//      magFilters: {
+//     NearestFilter: THREE.NearestFilter,
+//     'LinearFilter (Default)': THREE.LinearFilter,
+
+    // texture.minFilter = THREE.LinearMipMapLinearFilter;
+    // texture.magFilter = THREE.NearestFilter;
+    // texture.needsUpdate = true
+    // const material = new THREE.MeshPhongMaterial({
+    //     map: texture,
+    //     transparent:true,
+    //     //side: THREE.DoubleSide,
+    //     //color: '#ffff00',
+    //     //bumpMap: THREE.ImageUtils.loadTexture('http://i.imgur.com/tz483el.jpg'),
+    // });
+
+    //var dataURL = patternCanvas.toDataURL("image/jpg");
+
+    //return texture;
+
+     var dataURL = patternCanvas.toDataURL("image/png");
+
+     return dataURL ; // dataURL.replace(/^data:image\/(png|jpg);base64,/, "");
 }
 
 function createMateria(fillStyle) {
@@ -1224,104 +1323,4 @@ function sortObject(o) {
         sorted[a[key]] = o[a[key]];
     }
     return sorted;
-}
-
-function canvas2ImgTexture(isCustom){
-    const patternCanvas = document.createElement('canvas');
-    const patternContext = patternCanvas.getContext('2d');
-    if(isCustom.what == 'hatch'){
-        var wh = Number(isCustom.size.wh);
-        var barWidth = Number(isCustom.size.barWidth);
-        var type = isCustom.size.type;
-        
-        patternCanvas.width = wh; //이미지 컨테이너 가로길이
-        patternCanvas.height = wh; //이미지 켄터이너 세로길이
-        var dg = Math.sqrt((wh*wh)+(wh*wh)); //대각선길이
-        var rect={ x:(wh/2)-barWidth/2, y:(wh - dg)/2, width:barWidth, height:dg };
-        patternContext.fillStyle = '#ffffff00'; //배경
-        patternContext.fillRect(0, 0, patternCanvas.width, patternCanvas.height); //배경그리기
-        
-        patternContext.translate(wh/2, wh/2);
-        
-        var angle = 45;
-        if(type == "\\"){
-          angle = 45;
-        }else if(type == "/"){
-          angle = 135;
-        }else if(type == "X"){
-          angle = 45;
-        }
-        
-        patternContext.rotate( -(Math.PI / 180) * angle );
-        patternContext.translate(-wh/2, -wh/2);
-        
-        patternContext.fillStyle = isCustom.hatchColor;
-        //patternContext.globalAlpha = Number(isCustom.opacity);
-        patternContext.fillRect( rect.x, rect.y, rect.width, rect.height );
-        
-        if(type == "\\" || type == "/"){
-            patternContext.fillRect((wh - dg)/2 - barWidth/2, (wh/2) - (barWidth/2), barWidth, barWidth); //왼쪽하단
-            patternContext.fillRect((wh + dg)/2 - barWidth/2, (wh/2) - (barWidth/2), barWidth, barWidth); //오른쪽상단
-        }else if(type == "X"){
-          patternContext.restore();
-          patternContext.translate(wh/2, wh/2);
-          patternContext.rotate( -(Math.PI / 180) * 90 );
-          patternContext.translate(-wh/2, -wh/2);
-          patternContext.fillRect( rect.x, rect.y, rect.width, rect.height );
-        }
-        
-    } else if(isCustom.what == 'dot'){
-        var wh = Number(isCustom.size.wh);
-        var offset = Number(isCustom.size.offset);
-        var radius = Number(isCustom.size.radius);
-        patternCanvas.width = wh + offset; //이미지 컨테이너 가로길이
-        patternCanvas.height = wh + offset; //이미지 켄터이너 세로길이
-        patternContext.beginPath();
-        patternContext.arc(wh/2, wh/2, radius, 0, Math.PI * 2, true);
-        patternContext.fillStyle = isCustom.dotColor;
-        //patternContext.globalAlpha = Number(isCustom.opacity);
-        patternContext.fill();
-    }
-    
-    // var canvas=document.createElement('canvas');
-    // var ctx=canvas.getContext("2d");
-    // ctx.fillStyle=ctx.createPattern(patternCanvas,'repeat');
-    // ctx.fillRect(0,0,1200,1200);
-
-    const texture = new THREE.CanvasTexture(patternContext.canvas);
-    texture.wrapS = THREE.RepeatWrapping;
-    texture.wrapT = THREE.RepeatWrapping;
-    texture.repeat.set( 5, 5 );
-    
-    //const texture = new THREE.CanvasTexture(ctx.canvas);
-
-//     NearestFilter: THREE.NearestFilter,
-//     NearestMipMapLinearFilter: THREE.NearestMipMapLinearFilter,
-//     NearestMipMapNearestFilter: THREE.NearestMipMapNearestFilter,
-//     'LinearFilter ': THREE.LinearFilter,
-//     'LinearMipMapLinearFilter (Default)': THREE.LinearMipMapLinearFilter,
-//     LinearMipmapNearestFilter: THREE.LinearMipmapNearestFilter,
-//      },
-//      magFilters: {
-//     NearestFilter: THREE.NearestFilter,
-//     'LinearFilter (Default)': THREE.LinearFilter,
-
-    // texture.minFilter = THREE.LinearMipMapLinearFilter;
-    // texture.magFilter = THREE.NearestFilter;
-    // texture.needsUpdate = true
-    // const material = new THREE.MeshPhongMaterial({
-    //     map: texture,
-    //     transparent:true,
-    //     //side: THREE.DoubleSide,
-    //     //color: '#ffff00',
-    //     //bumpMap: THREE.ImageUtils.loadTexture('http://i.imgur.com/tz483el.jpg'),
-    // });
-
-    //var dataURL = patternCanvas.toDataURL("image/jpg");
-
-    return texture;
-
-    // var dataURL = patternCanvas.toDataURL("image/jpg");
-
-    // return dataURL ; // dataURL.replace(/^data:image\/(png|jpg);base64,/, "");
 }
