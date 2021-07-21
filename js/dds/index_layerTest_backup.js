@@ -10,7 +10,7 @@ quake.infoWindow = infoWindow;
 let hardwareConcurrency = typeof window !== 'undefined' ? window.navigator.hardwareConcurrency || 4 : 0;
 let atdWorkerCount = Math.max(Math.floor(hardwareConcurrency / 2), 1);
 let currentAtdWorkerQueue = 0;
-let atdReceivedData = {};
+let atdReceivedData = new Map();
 let atdData = new Map();
 let atdWorkerQueueList = [];
 
@@ -56,7 +56,7 @@ function atdPostWorkerQueue(what, data, layer, callback) {
 }
 
 async function runAtdWorker(params) {
-    console.time('performance');
+    console.time('performance' + params.layer);
 
     let layer = params.layer;
     let LngLatData = params.LngLatData;
@@ -90,26 +90,35 @@ function mergeAtdWorkerCallback(e) {
         let transData = e.data.transData;
         let layer = e.data.layer;
 
-        atdReceivedData[qid] = transData;
-
-        if (objSize(atdReceivedData) == atdWorkerCount) {
-            // let sortedO = common_gis.sortObject(wavReceivedData);
-            // for (k in sortedO){
-            //     let zxdf = sortedO[k];
-            //     __data.push(...zxdf);
-            // }
-            let l = Object.values(atdReceivedData);
-            let rcvData = [];
-            l.forEach(_l => {
-                rcvData.push(..._l);
-            });
-
-            for (var member in atdReceivedData) delete atdReceivedData[member];
-
-            atdData.set(layer, rcvData);
-            atdPostProcess(layer);
-            console.timeEnd('performance');
+        if(atdReceivedData.has(layer)){
+            let rcvData = atdReceivedData.get(layer);
+            rcvData[qid] = transData;
+        }else{
+            let rcvData = {};
+            rcvData[qid] = transData;
+            atdReceivedData.set(layer, rcvData);
         }
+        
+        atdReceivedData.forEach((value, key, mapObject) => {
+            if (objSize(value) == atdWorkerCount) {
+                // let sortedO = common_gis.sortObject(wavReceivedData);
+                // for (k in sortedO){
+                //     let zxdf = sortedO[k];
+                //     __data.push(...zxdf);
+                // }
+                let l = Object.values(value);
+                let rcvData = [];
+                l.forEach(_l => {
+                    rcvData.push(..._l);
+                });
+    
+                for (var member in value) delete value[member];
+                atdReceivedData.delete(key);
+                atdData.set(layer, rcvData);
+                atdPostProcess(layer);
+                console.timeEnd('performance'+layer);
+            }
+        });
     }
 }
 
@@ -458,8 +467,6 @@ function loadLine(e) {
                 geojson = JSON.parse(geojson.geojson);
 
                 var lineStrings = maptalks.GeoJSON.toGeometry(geojson);
-                var timer = 'generate line time';
-                console.time(timer);
                 const mesh = quake.threeLayer.toFatLines(lineStrings, { interactive: false }, lineMaterial);
                 //const mesh = quake.threeLayer.toLines(lineStrings, { interactive: false }, lineMaterial);
                 mesh.customId = customId;
