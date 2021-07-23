@@ -36,7 +36,6 @@
 			this.depthMaterial.side = THREE.DoubleSide;
 			this.depthMaterial.depthPacking = THREE.RGBADepthPacking;
 			this.depthMaterial.blending = THREE.NoBlending;
-			this.depthMaterial.transparent = true; //커스텀
 			this.prepareMaskMaterial = this.getPrepareMaskMaterial();
 			this.prepareMaskMaterial.side = THREE.DoubleSide;
 			this.prepareMaskMaterial.fragmentShader = replaceDepthToViewZ( this.prepareMaskMaterial.fragmentShader, this.renderCamera );

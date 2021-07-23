@@ -504,6 +504,7 @@ function loadLine(e) {
 
 var polygonMaterial = new THREE.MeshPhongMaterial({ color: 0x00ffff, transparent: true, wireframe:false});
 
+
 let polygonMeshs = [];
 
 async function loadPolygon(e) {
@@ -546,6 +547,14 @@ async function loadPolygon(e) {
                 mesh.customId = customId;
                 quake.threeLayer.addMesh(mesh);
                 polygonMeshs.push(mesh);
+
+                let customId2 = 'polygon_1';
+                var polygonMaterial2 = new THREE.MeshPhongMaterial({ color: 0xff0000, transparent: true, wireframe:false, opacity:0.5});
+                var mesh2 = quake.threeLayer.toFlatPolygons(polygons.slice(0, Infinity), { topColor: '#fff', interactive: false, }, polygonMaterial2);
+             
+                mesh2.customId = customId2;
+                quake.threeLayer.addMesh(mesh2);
+
 
                 const outlineM = new THREE.LineBasicMaterial({color: 0x000000});
 
@@ -590,6 +599,8 @@ async function loadPolygon(e) {
                 }
                 //let bufferGeometry = BufferGeometryUtils.mergeBufferGeometries(geometries);
                 //const line = new THREE.Line( bufferGeometry, outlineM );
+                let customId3 = 'line_' + 1;
+                Group.customId = customId3;
                 quake.threeLayer.addMesh(Group);
                 
 

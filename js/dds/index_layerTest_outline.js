@@ -346,8 +346,8 @@ quake.setBaseLayer = function () {
     });
 
     quake.map = new maptalks.Map("map", {
-        center: [129.15158, 35.15361],
-        zoom: 10,
+        center: [128.902672, 35.190265],
+        zoom: 17,
         //maxZoom: 18,
         //minZoom: 9,
         centerCross: true,
@@ -535,7 +535,8 @@ function loadLine(e) {
     }
 }
 
-var polygonMaterial = new THREE.MeshPhongMaterial({ color: 0x00ffff, transparent: true, wireframe:false});
+var polygonMaterial = new THREE.MeshPhongMaterial({ color: 0x00ffff, transparent: true, wireframe:false, opacity:0.5});
+
 
 let polygonMeshs = [];
 
@@ -568,7 +569,7 @@ async function loadPolygon(e) {
 
             });
             if (polygons.length > 0) {
-                let custom_style_res = await fetch('/test/custom_style1.json');
+                let custom_style_res = await fetch('/test/custom_style2.json');
                 let custom_style = await custom_style_res.json();
                 let dataUrl = canvas2ImgUrl(custom_style);
                 textureLoader.load( dataUrl, function ( texture ) {
@@ -576,12 +577,11 @@ async function loadPolygon(e) {
 					outlinePass.patternTexture = texture;
 					texture.wrapS = THREE.RepeatWrapping;
 					texture.wrapT = THREE.RepeatWrapping;
-
 				} );
                 
-
+                var testMat = new THREE.MeshPhongMaterial({ color: 0x00ffff, transparent: true, wireframe:false, opacity:0.5});
                 
-                var mesh = quake.threeLayer.toFlatPolygons(polygons.slice(0, Infinity), { topColor: '#fff', interactive: false, }, polygonMaterial);
+                var mesh = quake.threeLayer.toFlatPolygons(polygons.slice(0, 43), { topColor: '#fff', interactive: false, }, testMat);
                 mesh.customId = customId;
                 quake.threeLayer.addMesh(mesh);
                 polygonMeshs.push(mesh);
@@ -650,11 +650,16 @@ function canvas2ImgUrl(isCustom){
         var radius = Number(isCustom.size.radius);
         patternCanvas.width = wh + offset; //이미지 컨테이너 가로길이
         patternCanvas.height = wh + offset; //이미지 켄터이너 세로길이
+
+        patternContext.fillStyle = '#ff0000'; //배경
+        patternContext.fillRect(0, 0, patternCanvas.width, patternCanvas.height); //배경그리기
+
+
         patternContext.beginPath();
         patternContext.arc(wh/2, wh/2, radius, 0, Math.PI * 2, true);
         patternContext.fillStyle = isCustom.dotColor;
         //patternContext.globalAlpha = Number(isCustom.opacity);
-        patternContext.fill();
+        patternContext.fill(); 
     }
     
     // var canvas=document.createElement('canvas');
@@ -695,9 +700,11 @@ function canvas2ImgUrl(isCustom){
 
     //return texture;
 
-     var dataURL = patternCanvas.toDataURL("image/png");
-
-     return dataURL ; // dataURL.replace(/^data:image\/(png|jpg);base64,/, "");
+    var dataURL = patternCanvas.toDataURL("image/png");
+    var myImage = document.getElementById('testImg');
+    myImage.src = dataURL;
+   
+    return dataURL ; // dataURL.replace(/^data:image\/(png|jpg);base64,/, "");
 }
 
 function createMateria(fillStyle) {
