@@ -368,8 +368,6 @@ quake.setThreeLayer = function () {
         forceRenderOnRotating: false
     });
 
-
-
     quake.threeLayer.prepareToDraw = function (gl, scene, camera) {
         stats = new Stats();
         stats.domElement.style.zIndex = 100;
