@@ -7,16 +7,10 @@ var stats = null;
 var infoWindow;
 quake.infoWindow = infoWindow;
 
-let composer, effectFXAA, outlinePass;
-
-let selectedObjects = [];
-
-
-
 let hardwareConcurrency = typeof window !== 'undefined' ? window.navigator.hardwareConcurrency || 4 : 0;
 let atdWorkerCount = Math.max(Math.floor(hardwareConcurrency / 2), 1);
 let currentAtdWorkerQueue = 0;
-let atdReceivedData = {};
+let atdReceivedData = new Map();
 let atdData = new Map();
 let atdWorkerQueueList = [];
 
@@ -62,7 +56,7 @@ function atdPostWorkerQueue(what, data, layer, callback) {
 }
 
 async function runAtdWorker(params) {
-    console.time('performance');
+    console.time('performance' + params.layer);
 
     let layer = params.layer;
     let LngLatData = params.LngLatData;
@@ -96,26 +90,35 @@ function mergeAtdWorkerCallback(e) {
         let transData = e.data.transData;
         let layer = e.data.layer;
 
-        atdReceivedData[qid] = transData;
-
-        if (objSize(atdReceivedData) == atdWorkerCount) {
-            // let sortedO = common_gis.sortObject(wavReceivedData);
-            // for (k in sortedO){
-            //     let zxdf = sortedO[k];
-            //     __data.push(...zxdf);
-            // }
-            let l = Object.values(atdReceivedData);
-            let rcvData = [];
-            l.forEach(_l => {
-                rcvData.push(..._l);
-            });
-
-            for (var member in atdReceivedData) delete atdReceivedData[member];
-
-            atdData.set(layer, rcvData);
-            atdPostProcess(layer);
-            console.timeEnd('performance');
+        if(atdReceivedData.has(layer)){
+            let rcvData = atdReceivedData.get(layer);
+            rcvData[qid] = transData;
+        }else{
+            let rcvData = {};
+            rcvData[qid] = transData;
+            atdReceivedData.set(layer, rcvData);
         }
+        
+        atdReceivedData.forEach((value, key, mapObject) => {
+            if (objSize(value) == atdWorkerCount) {
+                // let sortedO = common_gis.sortObject(wavReceivedData);
+                // for (k in sortedO){
+                //     let zxdf = sortedO[k];
+                //     __data.push(...zxdf);
+                // }
+                let l = Object.values(value);
+                let rcvData = [];
+                l.forEach(_l => {
+                    rcvData.push(..._l);
+                });
+    
+                for (var member in value) delete value[member];
+                atdReceivedData.delete(key);
+                atdData.set(layer, rcvData);
+                atdPostProcess(layer);
+                console.timeEnd('performance'+layer);
+            }
+        });
     }
 }
 
@@ -346,8 +349,8 @@ quake.setBaseLayer = function () {
     });
 
     quake.map = new maptalks.Map("map", {
-        center: [128.902672, 35.190265],
-        zoom: 17,
+        center: [129.15158, 35.15361],
+        zoom: 10,
         //maxZoom: 18,
         //minZoom: 9,
         centerCross: true,
@@ -360,6 +363,7 @@ quake.setBaseLayer = function () {
 //three layer 생성
 quake.setThreeLayer = function () {
     quake.threeLayer = new maptalks.ThreeLayer('threelayer', {
+        forceRenderOnZooming: false,
         forceRenderOnMoving: false,
         forceRenderOnRotating: false
     });
@@ -374,22 +378,6 @@ quake.setThreeLayer = function () {
         var light = new THREE.DirectionalLight(0xffffff);
         light.position.set(0, -10, 10).normalize();
         scene.add(light);
-
-        composer = new THREE.EffectComposer( gl );
-
-        const renderPass = new THREE.RenderPass( scene, camera );
-        composer.addPass( renderPass );
-
-        outlinePass = new THREE.OutlinePass( new THREE.Vector2( window.innerWidth, window.innerHeight ), scene, camera );
-        outlinePass.usePatternTexture = true;
-
-
-        composer.addPass( outlinePass );
-        effectFXAA = new THREE.ShaderPass( THREE.FXAAShader );
-        effectFXAA.uniforms[ 'resolution' ].value.set( 1 / window.innerWidth, 1 / window.innerHeight );
-        composer.addPass( effectFXAA );
-
-        window.addEventListener( 'resize', onWindowResize );
     }
 
     quake.threeLayer.addTo(quake.map);
@@ -398,18 +386,6 @@ quake.setThreeLayer = function () {
     //update();
 }
 
-function onWindowResize(){
-    const width = window.innerWidth;
-    const height = window.innerHeight;
-
-    // camera.aspect = width / height;
-    // camera.updateProjectionMatrix();
-
-    // renderer.setSize( width, height );
-    composer.setSize( width, height );
-
-    effectFXAA.uniforms[ 'resolution' ].value.set( 1 / window.innerWidth, 1 / window.innerHeight );
-}
 
 quake.sortLayers = function () {
     //let sortLayers = []; 
@@ -433,11 +409,6 @@ function animation() {
     if (stats) {
         stats.update();
     }
-
-    if(composer){
-        composer.render();
-    }
-    
     requestAnimationFrame(animation);
 }
 
@@ -496,14 +467,11 @@ function loadLine(e) {
                 geojson = JSON.parse(geojson.geojson);
 
                 var lineStrings = maptalks.GeoJSON.toGeometry(geojson);
-                var timer = 'generate line time';
-                console.time(timer);
                 const mesh = quake.threeLayer.toFatLines(lineStrings, { interactive: false }, lineMaterial);
                 //const mesh = quake.threeLayer.toLines(lineStrings, { interactive: false }, lineMaterial);
                 mesh.customId = customId;
                 lines.push(mesh);
                 quake.threeLayer.addMesh(mesh);
-                //selectedObjects.push(mesh.object3d);
 
                 if(quake.is3D){
                     if (customId == 'line_' + seq) {
@@ -534,10 +502,11 @@ function loadLine(e) {
     }
 }
 
-var polygonMaterial = new THREE.MeshPhongMaterial({ color: 0x00ffff, transparent: true, wireframe:false, opacity:0.5});
+var polygonMaterial = new THREE.MeshPhongMaterial({ color: 0x00ffff, transparent: true, wireframe:false});
 
 
 let polygonMeshs = [];
+let shaderMaterial = null;
 
 async function loadPolygon(e) {
     let seq = 0;
@@ -568,25 +537,114 @@ async function loadPolygon(e) {
 
             });
             if (polygons.length > 0) {
+
+                 
                 let custom_style_res = await fetch('/test/custom_style1.json');
                 let custom_style = await custom_style_res.json();
                 let dataUrl = canvas2ImgUrl(custom_style);
                 textureLoader.load( dataUrl, function ( texture ) {
+                    texture.wrapS = THREE.RepeatWrapping;
+                    texture.wrapT = THREE.RepeatWrapping;
 
-					outlinePass.patternTexture = texture;
-					texture.wrapS = THREE.RepeatWrapping;
-					texture.wrapT = THREE.RepeatWrapping;
-				} );
-                
-                var testMat = new THREE.MeshPhongMaterial({ color: 0x000000, transparent: true, wireframe:false, opacity: 1});
-                
-                var mesh = quake.threeLayer.toFlatPolygons(polygons.slice(0, 43), { topColor: '#fff', interactive: false, }, testMat);
+                    shaderMaterial =new THREE.ShaderMaterial( {
+                        uniforms: {
+                            'patternTexture': {
+                                value: texture
+                            },
+                            'patternSize':{
+                                value: 6.0
+                            },
+                        },
+                        vertexShader: `varying vec2 vUv;
+        
+                        void main() {
+                            vUv = uv;
+                            gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
+                        }`,
+                        fragmentShader: 				
+                        `varying vec2 vUv;
+        
+                        uniform sampler2D patternTexture;
+                        uniform float patternSize;
+        
+                        void main() {
+                            vec4 patternColor = texture2D(patternTexture, patternSize * vUv);
+                            gl_FragColor = 1.0 * patternColor;
+                        }`,
+                        transparent: true
+                    } );
+
+                    var mesh = quake.threeLayer.toFlatPolygons(polygons.slice(0, Infinity), { topColor: '#fff', interactive: false, }, shaderMaterial);
+             
                 mesh.customId = customId;
                 quake.threeLayer.addMesh(mesh);
                 polygonMeshs.push(mesh);
+
+                let customId2 = 'polygon_1';
+                var polygonMaterial2 = new THREE.MeshPhongMaterial({ color: 0xff0000, transparent: true, wireframe:false, opacity:0.5});
+                var mesh2 = quake.threeLayer.toFlatPolygons(polygons.slice(0, Infinity), { topColor: '#fff', interactive: false, }, polygonMaterial2);
+             
+                mesh2.customId = customId2;
+                //quake.threeLayer.addMesh(mesh2);
+
+
+                const outlineM = new THREE.LineBasicMaterial({color: 0x000000});
+
+                //let outlines = [];
+                //let geometries = [];
+                const Group = new THREE.Group();
+                for(var kk=0; kk<polygons.length; kk++){
+                    let poly = polygons[kk];
+                    let ct = poly.getCenter();
+                    const points = [];
+                    for(var pp=0; pp<poly._coordinates.length; pp++){
+                        let cc = poly._coordinates[pp];
+                        let xx = cc.x;
+                        let yy = cc.y;
+                        let vt3 = quake.threeLayer.coordinateToVector3(new maptalks.Coordinate(xx, yy));
+                        points.push( new THREE.Vector3(vt3.x, vt3.y, 0 ) );
+                    }
+                    const geogeo = new THREE.BufferGeometry().setFromPoints( points );
+                    //geometries.push(geogeo);
+                    const line = new THREE.LineLoop( geogeo, outlineM );
+                    Group.add(line);
+
+                    let holes = poly.getHoles();
+                    if(holes && holes.length > 0){
+                        for(var hh=0; hh<holes.length; hh++){
+                            let hl = holes[hh];
+                            const holePoints = [];
+                            for(hc=0; hc<hl.length; hc++){
+                                let cc = hl[hc];
+                                let xx = cc.x;
+                                let yy = cc.y;
+                                let vt3 = quake.threeLayer.coordinateToVector3(new maptalks.Coordinate(xx, yy));
+                                holePoints.push( new THREE.Vector3(vt3.x, vt3.y, 0 ) );
+                            }
+                            const hole_geogeo = new THREE.BufferGeometry().setFromPoints( holePoints );
+                            //geometries.push(geogeo);
+                            const hole_line = new THREE.LineLoop( hole_geogeo, outlineM );
+                            Group.add(hole_line);
+                        }
+                    }
+                   // outlines.push(line);
+                }
+                //let bufferGeometry = BufferGeometryUtils.mergeBufferGeometries(geometries);
+                //const line = new THREE.Line( bufferGeometry, outlineM );
+                let customId3 = 'line_' + 1;
+                Group.customId = customId3;
+                quake.threeLayer.addMesh(Group);
+                
+
+                
+
+
                 polygons.length = 0;
-                selectedObjects.push(mesh.object3d);
-                outlinePass.selectedObjects = selectedObjects;
+
+					
+				} );
+ 
+                
             } 
         }
     } else {
@@ -597,8 +655,6 @@ async function loadPolygon(e) {
         }
     }
 }
-
-
 function canvas2ImgUrl(isCustom){
     const patternCanvas = document.createElement('canvas');
     const patternContext = patternCanvas.getContext('2d');
@@ -1010,52 +1066,25 @@ function initGui() {
         });
     });
 
-    gui.addColor(params, 'color').name('polygon color').onChange(function () {
-        polygonMaterial.color.set(params.color);
-        polygonMeshs.forEach(function (mesh) {
-            mesh.setSymbol(polygonMaterial);
-        });
-    });
-    gui.add(params, 'opacity', 0, 1).onChange(function () {
-        polygonMaterial.opacity = params.opacity;
-        polygonMeshs.forEach(function (mesh) {
-            mesh.setSymbol(polygonMaterial);
-        });
-    });
+    // gui.addColor(params, 'color').name('polygon color').onChange(function () {
+    //     polygonMaterial.color.set(params.color);
+    //     polygonMeshs.forEach(function (mesh) {
+    //         mesh.setSymbol(polygonMaterial);
+    //     });
+    // });
+    // gui.add(params, 'opacity', 0, 1).onChange(function () {
+    //     polygonMaterial.opacity = params.opacity;
+    //     polygonMeshs.forEach(function (mesh) {
+    //         mesh.setSymbol(polygonMaterial);
+    //     });
+    // });
 
     var patternSizeParam = { 
         patternSize: 6,
     };
-
     gui.add(patternSizeParam, 'patternSize', 6, 200).onChange(function () {
-        outlinePass.patternSize = patternSizeParam.patternSize;
+        shaderMaterial.uniforms.patternSize = patternSizeParam.patternSize;
     });
-
-    var visibilityParam = {
-        visibleEdgeColor: '#ffffff',
-        hiddenEdgeColor: '#190a05',
-    };
- 
-    gui.addColor( visibilityParam, 'visibleEdgeColor' ).onChange( function ( value ) {
-
-        outlinePass.visibleEdgeColor.set( value );
-
-    } ); 
-    gui.addColor( visibilityParam, 'hiddenEdgeColor' ).onChange( function ( value ) {
-
-        outlinePass.hiddenEdgeColor.set( value );
-
-    } );
-
-    var edgeParam = {
-        edgeOpacity: 1,
-    };
- 
-    gui.add( edgeParam, 'edgeOpacity', 0, 1 ).onChange( function ( value ) {
-
-        outlinePass.edgeOpacity = value;
-
-    } );
 
 }
 

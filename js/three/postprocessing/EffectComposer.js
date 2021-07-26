@@ -113,7 +113,7 @@
 			}
 
 			const currentRenderTarget = this.renderer.getRenderTarget();
-			let maskActive = false;
+			let maskActive = true;
 
 			for ( let i = 0, il = this.passes.length; i < il; i ++ ) {
 

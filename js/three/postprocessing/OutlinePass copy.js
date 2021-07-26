@@ -80,8 +80,8 @@
 				vertexShader: copyShader.vertexShader,
 				fragmentShader: copyShader.fragmentShader,
 				blending: THREE.NoBlending,
-				depthTest: true,
-				depthWrite: true,
+				depthTest: false,
+				depthWrite: false,
 				transparent: true
 			} );
 			this.enabled = true;
@@ -377,7 +377,7 @@
 						value: null
 					},
 					'cameraNearFar': {
-						value: new THREE.Vector2( 0.0, 0.0 )
+						value: new THREE.Vector2( 0.5, 0.5 )
 					},
 					'textureMatrix': {
 						value: null
@@ -411,10 +411,10 @@
 
 				void main() {
 
-					/*float depth = unpackRGBAToDepth(texture2DProj( depthTexture, projTexCoord ));
+					float depth = unpackRGBAToDepth(texture2DProj( depthTexture, projTexCoord ));
 					float viewZ = - DEPTH_TO_VIEW_Z( depth, cameraNearFar.x, cameraNearFar.y );
-					float depthTest = (-vPosition.z > viewZ) ? 1.0 : 0.0;*/
-					gl_FragColor = vec4(0.0, 1.0, 1.0, 1.0);
+					float depthTest = (-vPosition.z > viewZ) ? 1.0 : 0.0;
+					gl_FragColor = vec4(1.0, 1.0, 1.0, 1.0);
 
 				}`
 			} );
@@ -467,8 +467,9 @@
 					float d = length( vec2(diff1, diff2) );
 					float a1 = min(c1.g, c2.g);
 					float a2 = min(c3.g, c4.g);
-					float visibilityFactor = min(a1, a2);
-					vec3 edgeColor = 1.0 - visibilityFactor > 0.001 ? visibleEdgeColor : hiddenEdgeColor;
+					/*float visibilityFactor = min(a1, a2);
+					vec3 edgeColor = 1.0 - visibilityFactor > 0.001 ? visibleEdgeColor : hiddenEdgeColor;*/
+					vec3 edgeColor = visibleEdgeColor;
 					gl_FragColor = edgeOpacity * vec4(edgeColor, 1.0) * vec4(d);
 				}`
 			} );
@@ -567,8 +568,7 @@
 					vUv = uv;
 					gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
 				}`,
-				fragmentShader: 				
-				`varying vec2 vUv;
+				fragmentShader: `varying vec2 vUv;
 
 				uniform sampler2D maskTexture;
 				uniform sampler2D edgeTexture1;
@@ -585,15 +585,17 @@
 					vec4 maskColor = texture2D(maskTexture, vUv);
 					vec4 patternColor = texture2D(patternTexture, patternSize * vUv);
 					float visibilityFactor = 1.0 - maskColor.g > 0.0 ? 1.0 : 0.5;
-					vec4 edgeValue = edgeValue1 + edgeValue2 * edgeGlow;
+					vec4 edgeValue = edgeValue1 + edgeValue2;
 					vec4 finalColor = edgeStrength * maskColor.r * edgeValue;
-					if(true)
-						finalColor +=  1.0 * (1.0 - maskColor.r) * (1.0 - patternColor.r);
+					if(true){
+						finalColor +=  0.5 * ( 1.0 - maskColor.r) * (1.0 - patternColor.r);
+						//finalColor +=  (1.0 - maskColor.r) * (1.0 - patternColor.r);
+					}
 					gl_FragColor = finalColor;
 				}`,
 				blending: THREE.AdditiveBlending,
-				depthTest: true,
-				depthWrite: true,
+				depthTest: false,
+				depthWrite: false,
 				transparent: true
 			} );
 
