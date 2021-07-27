@@ -45,10 +45,12 @@
         <script type="text/javascript" src="/js/three/shaders/FXAAShader.js"></script>
         <script type="text/javascript" src="/js/three/postprocessing/EffectComposer.js"></script>
         <script type="text/javascript" src="/js/three/postprocessing/MaskPass.js"></script>
-        <script type="text/javascript" src="/js/three/postprocessing/OutlinePass.js"></script>
+        <script type="text/javascript" src="/js/three/postprocessing/OutlinePass_custom.js"></script>
+       
         <script type="text/javascript" src="/js/three/postprocessing/Pass.js"></script>
         <script type="text/javascript" src="/js/three/postprocessing/RenderPass.js"></script>
         <script type="text/javascript" src="/js/three/postprocessing/ShaderPass.js"></script>
+        <script type="text/javascript" src="/js/three/postprocessing/CustomOutlinePass.js"></script>
     </head>
     <body>
         <div id="map" class="container">
@@ -58,6 +60,7 @@
             <input type="checkbox" style="margin-left: 10px;" id="loadTerrain" onchange="quake.loadTerrain(this);"><span style="color:red;">loadTerrain</span>
             <input type="checkbox" style="margin-left: 10px;" id="loadLine" onchange="loadLine(this);"><span style="color:red;">loadLine</span>
             <input type="checkbox" style="margin-left: 10px;" id="loadPolygon" onchange="loadPolygon(this);"><span style="color:red;">loadPolygon</span>
+            <input type="checkbox" style="margin-left: 10px;" id="loadPolygon2" onchange="loadPolygon2(this);"><span style="color:red;">loadPolygon2</span>
             <input type="checkbox" style="margin-left: 10px;" id="loadPoint" onchange="loadPoint(this);"><span style="color:red;">loadPoint</span>
             <img id="testImg" width="50" height="50" src="/test/selectFnIcon1.png">
         </div>

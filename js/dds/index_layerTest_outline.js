@@ -7,315 +7,12 @@ var stats = null;
 var infoWindow;
 quake.infoWindow = infoWindow;
 
-let composer, effectFXAA, outlinePass;
+let composer, effectFXAA, outlinePass1, outlinePass2;
 
-let selectedObjects = [];
+let selectedObjectsP1 = [];
 
+let selectedObjectsP2 = [];
 
-
-let hardwareConcurrency = typeof window !== 'undefined' ? window.navigator.hardwareConcurrency || 4 : 0;
-let atdWorkerCount = Math.max(Math.floor(hardwareConcurrency / 2), 1);
-let currentAtdWorkerQueue = 0;
-let atdReceivedData = {};
-let atdData = new Map();
-let atdWorkerQueueList = [];
-
-for (var i = 0; i < atdWorkerCount; i++) {
-    let wktq = new WorkerThreadQueue();
-    wktq.qid = i;
-    let w = new Worker('/js/worker/atd_worker.js');
-    w.wid = i;
-
-    atdWorkerQueueList.push({ wktq, w });
-}
-
-function setAtdWorkers() {
-    for (var i = 0; i < atdWorkerCount; i++) {
-        atdPostWorkerQueue("TRLD", null, null, mergeAtdWorkerCallback);
-    }
-}
-
-function getAtdWorkerQueue() {
-    var queue;
-    var w;
-    atdWorkerQueueList.some(el => {
-        if (el.wktq.qid == currentAtdWorkerQueue && el.w.wid == currentAtdWorkerQueue) {
-            if (el.wktq && el.w) {
-                queue = el.wktq;
-                w = el.w;
-                return true;
-            }
-        }
-    });
-
-    currentAtdWorkerQueue++;
-    if (currentAtdWorkerQueue >= atdWorkerCount) {
-        currentAtdWorkerQueue = 0;
-    }
-
-    return { queue, w };
-}
-
-function atdPostWorkerQueue(what, data, layer, callback) {
-    let wktqNw = getAtdWorkerQueue();
-    wktqNw.queue.pushQueue(wktqNw.w, { what, data, qid: wktqNw.queue.qid, wid: wktqNw.w.wid, layer }, callback);
-}
-
-async function runAtdWorker(params) {
-    console.time('performance');
-
-    let layer = params.layer;
-    let LngLatData = params.LngLatData;
-    let sliceCnt = atdWorkerCount;
-    let elementSize = Math.floor(LngLatData.length / sliceCnt);
-    let namugi = LngLatData.length % sliceCnt;
-
-    for (var i = 0; i < sliceCnt; i++) {
-        let start = i * elementSize;
-        let end = (i + 1) * elementSize;
-        if (namugi > 0) {
-            if (i == sliceCnt - 1) {
-                end = LngLatData.length;
-            }
-        }
-        let sl = LngLatData.slice(start, end);
-        atdPostWorkerQueue("TRAN", sl, layer, mergeAtdWorkerCallback);
-    }
-}
-
-let workerCompleCnt = 0;
-function mergeAtdWorkerCallback(e) {
-    if (e.data.what == 'TRCP') {
-        workerCompleCnt++;
-        if (workerCompleCnt == atdWorkerCount) {
-            console.log("all atd worker complete");
-        }
-    } else if (e.data.what == 'TRANCOPLETE') {
-        let qid = e.data.qid;
-        let wid = e.data.wid;
-        let transData = e.data.transData;
-        let layer = e.data.layer;
-
-        atdReceivedData[qid] = transData;
-
-        if (objSize(atdReceivedData) == atdWorkerCount) {
-            // let sortedO = common_gis.sortObject(wavReceivedData);
-            // for (k in sortedO){
-            //     let zxdf = sortedO[k];
-            //     __data.push(...zxdf);
-            // }
-            let l = Object.values(atdReceivedData);
-            let rcvData = [];
-            l.forEach(_l => {
-                rcvData.push(..._l);
-            });
-
-            for (var member in atdReceivedData) delete atdReceivedData[member];
-
-            atdData.set(layer, rcvData);
-            atdPostProcess(layer);
-            console.timeEnd('performance');
-        }
-    }
-}
-
-function atdPostProcess(layer) {
-    let rcvData = atdData.get(layer);
-    atdData.delete(layer);
-    //let custom_altitude = _this._datas[_i].properties.altitude;
-    let processData = new Map();
-    for (var i = 0; i < rcvData.length; i++) {
-        let rd = rcvData[i];
-        let idx = rd.d.i;
-        let x = rd.d.x;
-        let y = rd.d.y;
-        let altitude = rd.altitude;
-
-        if (processData.has(idx)) {
-            let xyzList = processData.get(idx);
-            xyzList.push({ x, y, altitude });
-        } else {
-            let xyzList = []
-            xyzList.push({ x, y, altitude });
-            processData.set(idx, xyzList);
-        }
-    }
-
-    let childPos = -1;
-    const object3ds = quake.threeLayer.getMeshes();
-    for (var i = 0; i < object3ds.length; i++) {
-        let object3d = object3ds[i];
-        if (object3d.object3d) {
-            if (object3d.object3d.__parent) {
-                let o3 = object3d.object3d.__parent;
-                if (o3.customId == layer) {
-                    //mesh property에 altitude 넣기
-                    for(var j=0; j<o3._datas.length; j++){
-                        let _d = o3._datas[j]; 
-                        if(j==42){
-                            console.log("debug");
-                        }
-
-                        let pd = processData.get(j);
-                        let pdIdx = 0;
-                        for(pdIdx=0; pdIdx<_d._coordinates.length; pdIdx++){
-                            let _coord = _d._coordinates[pdIdx];
-                            let ca = pd[pdIdx];
-                            if(ca.altitude){
-                                _coord.altitude = ca.altitude;
-                            }else{
-                                _coord.altitude = 0;
-                                console.log("debug1");
-                            } 
-                        }
-
-                        if(_d._holes){
-                            for(var h=0; h<_d._holes.length; h++){
-                                for(var k=0; k<_d._holes[h].length; k++){
-                                    let _coord = _d._holes[h][k];
-                                    let ca = pd[pdIdx];
-                                    if(ca.altitude){
-                                        _coord.altitude = ca.altitude;
-                                    }else{
-                                        _coord.altitude = 0;
-                                        console.log("debug2");
-                                    }
-                                    pdIdx++;
-                                }
-                            }
-                        }
-                    }
-                    childPos = i;
-                    break;
-                }
-            }
-        }
-    }
-
-    let customId = layer.split('_');
-    if(customId[0] == 'line'){ 
-        let allCnt = 0;
-        let endPos = 0;
-
-        let c = object3ds[childPos];//quake.threeLayer._renderer.scene.children[childPos];
-        let geo = null;
-        if (c.geometry) {
-            geo = c.geometry;
-        } else if (c.object3d.geometry) {
-            geo = c.object3d.geometry;
-        }
-        let posCnt = geo.attributes.instanceStart.count;
-
-        for (var [key, value] of processData) {
-
-            let vcnt = value.length * 3 + ((value.length - 2) * 3);
-            allCnt += vcnt;
-
-            let idxCnt = (2 + ((value.length - 2) * 2));
-
-            let selIdx = 2;
-
-            for (var i = 0; i < value.length; i++) { //4개 18개 6
-                let vd = value[i];
-                let x = vd.x;
-                let y = vd.y;
-                let altitude = vd.altitude + 0.2;
-
-                if (i == 0 || i == value.length - 1) {
-                    geo.attributes.instanceStart.array[selIdx + endPos] = altitude;
-                    geo.attributes.instanceEnd.array[selIdx + endPos] = altitude;
-                    selIdx += 3;
-                } else {
-                    geo.attributes.instanceStart.array[selIdx + endPos] = altitude;
-                    geo.attributes.instanceEnd.array[selIdx + endPos] = altitude;
-                    selIdx += 3;
-                    geo.attributes.instanceStart.array[selIdx + endPos] = altitude;
-                    geo.attributes.instanceEnd.array[selIdx + endPos] = altitude;
-                    selIdx += 3;
-                }
-                if (i == value.length - 1) {
-                    endPos += vcnt;
-                }
-            }
-
-        }
-        // let posCnt = geo.attributes.instanceStart.count;
-        // for(var i=0; i<posCnt; i++){
-        //     geo.attributes.instanceStart.setZ(i, 100);
-        //     geo.attributes.instanceEnd.setZ(i, 100);
-        // }
-        geo.attributes.instanceStart.needsUpdate = true;
-        geo.attributes.instanceEnd.needsUpdate = true;
-        geo.computeBoundingBox();
-        geo.computeBoundingSphere();
-    }else if(customId[0] == 'polygon'){
-        let allCnt = 0;
-        let endPos = 0;
-        let testEndCnt = 0;
-        let c = object3ds[childPos];//quake.threeLayer._renderer.scene.children[childPos];
-        let geo = null;
-        if (c.geometry) {
-            geo = c.geometry;
-        } else if (c.object3d.geometry) {
-            geo = c.object3d.geometry;
-        }
-        let posCnt = geo.attributes.position.count;
-
-        for (var [key, value] of processData) {
-            let _geoCnt = 0;
-            let allHolePoint = 0;
-            let _polygon = c._datas[key];
-            
-            if(_polygon.type == 'MultiPolygon'){
-                _polygon.forEach(p=>{
-                    let mph = p.getHoles();
-                    mph.forEach(h=>{
-                        allHolePoint+=h.length;
-                    });
-                    _geoCnt+=p._coordinates.length;
-                });
-            }else if(_polygon.type == 'Polygon'){
-                _geoCnt = _polygon._coordinates.length;
-                let holes = _polygon.getHoles();
-                holes.forEach(h=>{
-                    allHolePoint+=h.length;
-                });
-            }
-
-            let _allGeoCnt = _geoCnt + allHolePoint;
-            let vertCnt = _allGeoCnt*3;//(_allGeoCnt*2 + _allGeoCnt*2*2)*3;
-            allCnt += vertCnt;
-
-            let selIdx = 2;
-            
-            for (var i = 0; i < value.length; i++) {
-                let vd = value[i];
-                let x = vd.x;
-                let y = vd.y;
-                let altitude = vd.altitude + 0.08;
-
-                let zIdx = (i*3)+2;
-                geo.attributes.position.array[zIdx + endPos] = altitude;
-                
-                
-               // geo.attributes.position.array[selIdx + endPos] = altitude;
-                //selIdx += 3;
-                
-                if (i == value.length - 1) {
-                    endPos += vertCnt;
-                }
-            }
-
-        }
- 
-        // for(var i=0; i<posCnt; i++){
-        //     geo.attributes.position.setZ(i, 1);
-        // }
-        geo.attributes.position.needsUpdate = true;
-        geo.computeBoundingBox();
-        geo.computeBoundingSphere();
-    }
-}
 
 quake.viewMap = function () {
     quake.setBaseLayer();
@@ -360,34 +57,59 @@ quake.setBaseLayer = function () {
 //three layer 생성
 quake.setThreeLayer = function () {
     quake.threeLayer = new maptalks.ThreeLayer('threelayer', {
-        forceRenderOnMoving: false,
-        forceRenderOnRotating: false
+        forceRenderOnMoving: true,
+        forceRenderOnRotating: true
     });
-
-
 
     quake.threeLayer.prepareToDraw = function (gl, scene, camera) {
         stats = new Stats();
         stats.domElement.style.zIndex = 100;
         document.getElementById('map').appendChild(stats.domElement);
 
+        gl.setSize(window.innerWidth, window.innerHeight); 
+
         var light = new THREE.DirectionalLight(0xffffff);
         light.position.set(0, -10, 10).normalize();
         scene.add(light);
 
-        composer = new THREE.EffectComposer( gl );
+       
+
+        const depthTexture = new THREE.DepthTexture();
+        const renderTarget = new THREE.WebGLRenderTarget(
+            window.innerWidth,
+            window.innerHeight,
+            {
+                depthTexture: depthTexture,
+                depthBuffer: true,
+            }
+        );
+
+        composer = new THREE.EffectComposer( gl, renderTarget );
 
         const renderPass = new THREE.RenderPass( scene, camera );
         composer.addPass( renderPass );
 
-        outlinePass = new THREE.OutlinePass( new THREE.Vector2( window.innerWidth, window.innerHeight ), scene, camera );
-        outlinePass.usePatternTexture = true;
+        outlinePass1 = new THREE.OutlinePass( new THREE.Vector2( window.innerWidth, window.innerHeight ), scene, camera );
+        outlinePass1.usePatternTexture = true;
+
+        outlinePass2 = new THREE.OutlinePass( new THREE.Vector2( window.innerWidth, window.innerHeight ), scene, camera );
+        outlinePass2.usePatternTexture = true;
+
+        // Outline pass.
+        const customOutline = new THREE.CustomOutlinePass(
+            new THREE.Vector2(window.innerWidth, window.innerHeight),
+            scene,
+            camera
+        );
+        composer.addPass(customOutline);
 
 
-        composer.addPass( outlinePass );
+        // composer.addPass( outlinePass1 );
+        // composer.addPass( outlinePass2 );
+ 
         effectFXAA = new THREE.ShaderPass( THREE.FXAAShader );
         effectFXAA.uniforms[ 'resolution' ].value.set( 1 / window.innerWidth, 1 / window.innerHeight );
-        composer.addPass( effectFXAA );
+       // composer.addPass( effectFXAA );
 
         window.addEventListener( 'resize', onWindowResize );
     }
@@ -408,7 +130,9 @@ function onWindowResize(){
     // renderer.setSize( width, height );
     composer.setSize( width, height );
 
-    effectFXAA.uniforms[ 'resolution' ].value.set( 1 / window.innerWidth, 1 / window.innerHeight );
+    //effectFXAA.uniforms[ 'resolution' ].value.set( 1 / window.innerWidth, 1 / window.innerHeight );
+    effectFXAA.setSize(window.innerWidth, window.innerHeight);
+    customOutline.setSize(window.innerWidth, window.innerHeight);
 }
 
 quake.sortLayers = function () {
@@ -571,9 +295,68 @@ async function loadPolygon(e) {
                 let custom_style_res = await fetch('/test/custom_style1.json');
                 let custom_style = await custom_style_res.json();
                 let dataUrl = canvas2ImgUrl(custom_style);
+                // textureLoader.load( dataUrl, function ( texture ) {
+
+				// 	outlinePass1.patternTexture = texture;
+				// 	texture.wrapS = THREE.RepeatWrapping;
+				// 	texture.wrapT = THREE.RepeatWrapping;
+				// } );
+                
+                var testMat = new THREE.MeshPhongMaterial({ color: 0x000000, transparent: true, wireframe:false, opacity: 1});
+                
+                var mesh = quake.threeLayer.toFlatPolygons(polygons.slice(0, 43), { topColor: '#fff', interactive: false, }, testMat);
+                mesh.customId = customId;
+                quake.threeLayer.addMesh(mesh);
+                polygonMeshs.push(mesh);
+                polygons.length = 0;
+                selectedObjectsP1.push(mesh.object3d);
+                outlinePass1.selectedObjects = selectedObjectsP1;
+            } 
+        }
+    } else {
+        if (meshs && meshs.length > 0) {
+            meshs.forEach(m => {
+                m.hide();
+            });
+        }
+    }
+}
+
+async function loadPolygon2(e) {
+    let seq = 1;
+    let customId = 'polygon_' + seq;
+    let meshs = getMesh(customId);
+    if (e.checked) {
+        if (meshs && meshs.length > 0) {
+            meshs.forEach(m => {
+                m.show();
+            });
+        } else {
+            let res = await fetch('/test/polygonTest.geojson');
+            let geojson = await res.json();
+ 
+            let polygons = [];
+
+            geojson.features.forEach(feature => {
+                const geometry = feature.geometry;
+                const type = feature.geometry.type;
+                if (['Polygon', 'MultiPolygon'].includes(type)) {
+                    const height = 0;
+                    const properties = feature.properties;
+                    properties.height = height;
+                    const polygon = maptalks.GeoJSON.toGeometry(feature);
+                    polygon.setProperties(properties);
+                    polygons.push(polygon);
+                }
+
+            });
+            if (polygons.length > 0) {
+                let custom_style_res = await fetch('/test/custom_style2.json');
+                let custom_style = await custom_style_res.json();
+                let dataUrl = canvas2ImgUrl(custom_style);
                 textureLoader.load( dataUrl, function ( texture ) {
 
-					outlinePass.patternTexture = texture;
+					outlinePass2.patternTexture = texture;
 					texture.wrapS = THREE.RepeatWrapping;
 					texture.wrapT = THREE.RepeatWrapping;
 				} );
@@ -585,8 +368,8 @@ async function loadPolygon(e) {
                 quake.threeLayer.addMesh(mesh);
                 polygonMeshs.push(mesh);
                 polygons.length = 0;
-                selectedObjects.push(mesh.object3d);
-                outlinePass.selectedObjects = selectedObjects;
+                selectedObjectsP2.push(mesh.object3d);
+                outlinePass2.selectedObjects = selectedObjectsP2;
             } 
         }
     } else {
@@ -597,6 +380,7 @@ async function loadPolygon(e) {
         }
     }
 }
+
 
 
 function canvas2ImgUrl(isCustom){
@@ -611,7 +395,7 @@ function canvas2ImgUrl(isCustom){
         patternCanvas.height = wh; //이미지 켄터이너 세로길이
         var dg = Math.sqrt((wh*wh)+(wh*wh)); //대각선길이
         var rect={ x:(wh/2)-barWidth/2, y:(wh - dg)/2, width:barWidth, height:dg };
-        patternContext.fillStyle = '#ffffff00'; //배경
+        patternContext.fillStyle = '#ffffff'; //배경
         patternContext.fillRect(0, 0, patternCanvas.width, patternCanvas.height); //배경그리기
         
         patternContext.translate(wh/2, wh/2);
@@ -1023,12 +807,20 @@ function initGui() {
         });
     });
 
-    var patternSizeParam = { 
+    var patternSizeParam1 = { 
         patternSize: 6,
     };
 
-    gui.add(patternSizeParam, 'patternSize', 6, 200).onChange(function () {
-        outlinePass.patternSize = patternSizeParam.patternSize;
+    gui.add(patternSizeParam1, 'patternSize', 6, 200).onChange(function () {
+        outlinePass1.patternSize = patternSizeParam1.patternSize;
+    });
+
+    var patternSizeParam2 = { 
+        patternSize: 6,
+    };
+
+    gui.add(patternSizeParam2, 'patternSize', 6, 200).onChange(function () {
+        outlinePass2.patternSize = patternSizeParam2.patternSize;
     });
 
     var visibilityParam = {
@@ -1038,22 +830,32 @@ function initGui() {
  
     gui.addColor( visibilityParam, 'visibleEdgeColor' ).onChange( function ( value ) {
 
-        outlinePass.visibleEdgeColor.set( value );
+        outlinePass1.visibleEdgeColor.set( value );
 
     } ); 
     gui.addColor( visibilityParam, 'hiddenEdgeColor' ).onChange( function ( value ) {
 
-        outlinePass.hiddenEdgeColor.set( value );
+        outlinePass1.hiddenEdgeColor.set( value );
 
     } );
 
-    var edgeParam = {
+    var edgeParam1 = {
         edgeOpacity: 1,
     };
  
-    gui.add( edgeParam, 'edgeOpacity', 0, 1 ).onChange( function ( value ) {
+    gui.add( edgeParam1, 'edgeOpacity', 0, 1 ).onChange( function ( value ) {
 
-        outlinePass.edgeOpacity = value;
+        outlinePass1.edgeOpacity = value;
+
+    } );
+
+    var edgeParam2 = {
+        edgeOpacity: 1,
+    };
+ 
+    gui.add( edgeParam2, 'edgeOpacity', 0, 1 ).onChange( function ( value ) {
+
+        outlinePass2.edgeOpacity = value;
 
     } );
 
@@ -1363,4 +1165,309 @@ function sortObject(o) {
         sorted[a[key]] = o[a[key]];
     }
     return sorted;
+}
+
+
+let hardwareConcurrency = typeof window !== 'undefined' ? window.navigator.hardwareConcurrency || 4 : 0;
+let atdWorkerCount = Math.max(Math.floor(hardwareConcurrency / 2), 1);
+let currentAtdWorkerQueue = 0;
+let atdReceivedData = {};
+let atdData = new Map();
+let atdWorkerQueueList = [];
+
+for (var i = 0; i < atdWorkerCount; i++) {
+    let wktq = new WorkerThreadQueue();
+    wktq.qid = i;
+    let w = new Worker('/js/worker/atd_worker.js');
+    w.wid = i;
+
+    atdWorkerQueueList.push({ wktq, w });
+}
+
+function setAtdWorkers() {
+    for (var i = 0; i < atdWorkerCount; i++) {
+        atdPostWorkerQueue("TRLD", null, null, mergeAtdWorkerCallback);
+    }
+}
+
+function getAtdWorkerQueue() {
+    var queue;
+    var w;
+    atdWorkerQueueList.some(el => {
+        if (el.wktq.qid == currentAtdWorkerQueue && el.w.wid == currentAtdWorkerQueue) {
+            if (el.wktq && el.w) {
+                queue = el.wktq;
+                w = el.w;
+                return true;
+            }
+        }
+    });
+
+    currentAtdWorkerQueue++;
+    if (currentAtdWorkerQueue >= atdWorkerCount) {
+        currentAtdWorkerQueue = 0;
+    }
+
+    return { queue, w };
+}
+
+function atdPostWorkerQueue(what, data, layer, callback) {
+    let wktqNw = getAtdWorkerQueue();
+    wktqNw.queue.pushQueue(wktqNw.w, { what, data, qid: wktqNw.queue.qid, wid: wktqNw.w.wid, layer }, callback);
+}
+
+async function runAtdWorker(params) {
+    console.time('performance');
+
+    let layer = params.layer;
+    let LngLatData = params.LngLatData;
+    let sliceCnt = atdWorkerCount;
+    let elementSize = Math.floor(LngLatData.length / sliceCnt);
+    let namugi = LngLatData.length % sliceCnt;
+
+    for (var i = 0; i < sliceCnt; i++) {
+        let start = i * elementSize;
+        let end = (i + 1) * elementSize;
+        if (namugi > 0) {
+            if (i == sliceCnt - 1) {
+                end = LngLatData.length;
+            }
+        }
+        let sl = LngLatData.slice(start, end);
+        atdPostWorkerQueue("TRAN", sl, layer, mergeAtdWorkerCallback);
+    }
+}
+
+let workerCompleCnt = 0;
+function mergeAtdWorkerCallback(e) {
+    if (e.data.what == 'TRCP') {
+        workerCompleCnt++;
+        if (workerCompleCnt == atdWorkerCount) {
+            console.log("all atd worker complete");
+        }
+    } else if (e.data.what == 'TRANCOPLETE') {
+        let qid = e.data.qid;
+        let wid = e.data.wid;
+        let transData = e.data.transData;
+        let layer = e.data.layer;
+
+        atdReceivedData[qid] = transData;
+
+        if (objSize(atdReceivedData) == atdWorkerCount) {
+            // let sortedO = common_gis.sortObject(wavReceivedData);
+            // for (k in sortedO){
+            //     let zxdf = sortedO[k];
+            //     __data.push(...zxdf);
+            // }
+            let l = Object.values(atdReceivedData);
+            let rcvData = [];
+            l.forEach(_l => {
+                rcvData.push(..._l);
+            });
+
+            for (var member in atdReceivedData) delete atdReceivedData[member];
+
+            atdData.set(layer, rcvData);
+            atdPostProcess(layer);
+            console.timeEnd('performance');
+        }
+    }
+}
+
+function atdPostProcess(layer) {
+    let rcvData = atdData.get(layer);
+    atdData.delete(layer);
+    //let custom_altitude = _this._datas[_i].properties.altitude;
+    let processData = new Map();
+    for (var i = 0; i < rcvData.length; i++) {
+        let rd = rcvData[i];
+        let idx = rd.d.i;
+        let x = rd.d.x;
+        let y = rd.d.y;
+        let altitude = rd.altitude;
+
+        if (processData.has(idx)) {
+            let xyzList = processData.get(idx);
+            xyzList.push({ x, y, altitude });
+        } else {
+            let xyzList = []
+            xyzList.push({ x, y, altitude });
+            processData.set(idx, xyzList);
+        }
+    }
+
+    let childPos = -1;
+    const object3ds = quake.threeLayer.getMeshes();
+    for (var i = 0; i < object3ds.length; i++) {
+        let object3d = object3ds[i];
+        if (object3d.object3d) {
+            if (object3d.object3d.__parent) {
+                let o3 = object3d.object3d.__parent;
+                if (o3.customId == layer) {
+                    //mesh property에 altitude 넣기
+                    for(var j=0; j<o3._datas.length; j++){
+                        let _d = o3._datas[j]; 
+                        if(j==42){
+                            console.log("debug");
+                        }
+
+                        let pd = processData.get(j);
+                        let pdIdx = 0;
+                        for(pdIdx=0; pdIdx<_d._coordinates.length; pdIdx++){
+                            let _coord = _d._coordinates[pdIdx];
+                            let ca = pd[pdIdx];
+                            if(ca.altitude){
+                                _coord.altitude = ca.altitude;
+                            }else{
+                                _coord.altitude = 0;
+                                console.log("debug1");
+                            } 
+                        }
+
+                        if(_d._holes){
+                            for(var h=0; h<_d._holes.length; h++){
+                                for(var k=0; k<_d._holes[h].length; k++){
+                                    let _coord = _d._holes[h][k];
+                                    let ca = pd[pdIdx];
+                                    if(ca.altitude){
+                                        _coord.altitude = ca.altitude;
+                                    }else{
+                                        _coord.altitude = 0;
+                                        console.log("debug2");
+                                    }
+                                    pdIdx++;
+                                }
+                            }
+                        }
+                    }
+                    childPos = i;
+                    break;
+                }
+            }
+        }
+    }
+
+    let customId = layer.split('_');
+    if(customId[0] == 'line'){ 
+        let allCnt = 0;
+        let endPos = 0;
+
+        let c = object3ds[childPos];//quake.threeLayer._renderer.scene.children[childPos];
+        let geo = null;
+        if (c.geometry) {
+            geo = c.geometry;
+        } else if (c.object3d.geometry) {
+            geo = c.object3d.geometry;
+        }
+        let posCnt = geo.attributes.instanceStart.count;
+
+        for (var [key, value] of processData) {
+
+            let vcnt = value.length * 3 + ((value.length - 2) * 3);
+            allCnt += vcnt;
+
+            let idxCnt = (2 + ((value.length - 2) * 2));
+
+            let selIdx = 2;
+
+            for (var i = 0; i < value.length; i++) { //4개 18개 6
+                let vd = value[i];
+                let x = vd.x;
+                let y = vd.y;
+                let altitude = vd.altitude + 0.2;
+
+                if (i == 0 || i == value.length - 1) {
+                    geo.attributes.instanceStart.array[selIdx + endPos] = altitude;
+                    geo.attributes.instanceEnd.array[selIdx + endPos] = altitude;
+                    selIdx += 3;
+                } else {
+                    geo.attributes.instanceStart.array[selIdx + endPos] = altitude;
+                    geo.attributes.instanceEnd.array[selIdx + endPos] = altitude;
+                    selIdx += 3;
+                    geo.attributes.instanceStart.array[selIdx + endPos] = altitude;
+                    geo.attributes.instanceEnd.array[selIdx + endPos] = altitude;
+                    selIdx += 3;
+                }
+                if (i == value.length - 1) {
+                    endPos += vcnt;
+                }
+            }
+
+        }
+        // let posCnt = geo.attributes.instanceStart.count;
+        // for(var i=0; i<posCnt; i++){
+        //     geo.attributes.instanceStart.setZ(i, 100);
+        //     geo.attributes.instanceEnd.setZ(i, 100);
+        // }
+        geo.attributes.instanceStart.needsUpdate = true;
+        geo.attributes.instanceEnd.needsUpdate = true;
+        geo.computeBoundingBox();
+        geo.computeBoundingSphere();
+    }else if(customId[0] == 'polygon'){
+        let allCnt = 0;
+        let endPos = 0;
+        let testEndCnt = 0;
+        let c = object3ds[childPos];//quake.threeLayer._renderer.scene.children[childPos];
+        let geo = null;
+        if (c.geometry) {
+            geo = c.geometry;
+        } else if (c.object3d.geometry) {
+            geo = c.object3d.geometry;
+        }
+        let posCnt = geo.attributes.position.count;
+
+        for (var [key, value] of processData) {
+            let _geoCnt = 0;
+            let allHolePoint = 0;
+            let _polygon = c._datas[key];
+            
+            if(_polygon.type == 'MultiPolygon'){
+                _polygon.forEach(p=>{
+                    let mph = p.getHoles();
+                    mph.forEach(h=>{
+                        allHolePoint+=h.length;
+                    });
+                    _geoCnt+=p._coordinates.length;
+                });
+            }else if(_polygon.type == 'Polygon'){
+                _geoCnt = _polygon._coordinates.length;
+                let holes = _polygon.getHoles();
+                holes.forEach(h=>{
+                    allHolePoint+=h.length;
+                });
+            }
+
+            let _allGeoCnt = _geoCnt + allHolePoint;
+            let vertCnt = _allGeoCnt*3;//(_allGeoCnt*2 + _allGeoCnt*2*2)*3;
+            allCnt += vertCnt;
+
+            let selIdx = 2;
+            
+            for (var i = 0; i < value.length; i++) {
+                let vd = value[i];
+                let x = vd.x;
+                let y = vd.y;
+                let altitude = vd.altitude + 0.08;
+
+                let zIdx = (i*3)+2;
+                geo.attributes.position.array[zIdx + endPos] = altitude;
+                
+                
+               // geo.attributes.position.array[selIdx + endPos] = altitude;
+                //selIdx += 3;
+                
+                if (i == value.length - 1) {
+                    endPos += vertCnt;
+                }
+            }
+
+        }
+ 
+        // for(var i=0; i<posCnt; i++){
+        //     geo.attributes.position.setZ(i, 1);
+        // }
+        geo.attributes.position.needsUpdate = true;
+        geo.computeBoundingBox();
+        geo.computeBoundingSphere();
+    }
 }

@@ -587,7 +587,7 @@
 					float visibilityFactor = 1.0 - maskColor.g > 0.0 ? 1.0 : 0.5;
 					vec4 edgeValue = edgeValue1 + edgeValue2;
 					vec4 finalColor = edgeStrength * maskColor.r * edgeValue;
-					if(true){
+					if(usePatternTexture){
 						finalColor +=  0.5 * ( 1.0 - maskColor.r) * (1.0 - patternColor.r);
 						//finalColor +=  (1.0 - maskColor.r) * (1.0 - patternColor.r);
 					}

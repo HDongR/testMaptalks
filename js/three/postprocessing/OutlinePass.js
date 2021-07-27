@@ -9,11 +9,9 @@
 			this.renderCamera = camera;
 			this.selectedObjects = selectedObjects !== undefined ? selectedObjects : [];
 			this.visibleEdgeColor = new THREE.Color( 1, 1, 1 );
-			this.hiddenEdgeColor = new THREE.Color( 0.0, 0.00, 0.00 );
-			this.edgeOpacity = 1.0;
+			this.hiddenEdgeColor = new THREE.Color( 0.1, 0.04, 0.02 );
 			this.edgeGlow = 0.0;
 			this.usePatternTexture = false;
-			this.patternSize = 6.0;
 			this.edgeThickness = 1.0;
 			this.edgeStrength = 3.0;
 			this.downSampleRatio = 2;
@@ -28,7 +26,7 @@
 			const resx = Math.round( this.resolution.x / this.downSampleRatio );
 			const resy = Math.round( this.resolution.y / this.downSampleRatio );
 			this.maskBufferMaterial = new THREE.MeshBasicMaterial( {
-				color: 0xff0000
+				color: 0xffffff
 			} );
 			this.maskBufferMaterial.side = THREE.DoubleSide;
 			this.renderTargetMaskBuffer = new THREE.WebGLRenderTarget( this.resolution.x, this.resolution.y, pars );
@@ -80,8 +78,8 @@
 				vertexShader: copyShader.vertexShader,
 				fragmentShader: copyShader.fragmentShader,
 				blending: THREE.NoBlending,
-				depthTest: true,
-				depthWrite: true,
+				depthTest: false,
+				depthWrite: false,
 				transparent: true
 			} );
 			this.enabled = true;
@@ -311,7 +309,6 @@
 				this.edgeDetectionMaterial.uniforms[ 'texSize' ].value.set( this.renderTargetMaskDownSampleBuffer.width, this.renderTargetMaskDownSampleBuffer.height );
 				this.edgeDetectionMaterial.uniforms[ 'visibleEdgeColor' ].value = this.tempPulseColor1;
 				this.edgeDetectionMaterial.uniforms[ 'hiddenEdgeColor' ].value = this.tempPulseColor2;
-				this.edgeDetectionMaterial.uniforms[ 'edgeOpacity' ].value = this.edgeOpacity;
 				renderer.setRenderTarget( this.renderTargetEdgeBuffer1 );
 				renderer.clear();
 				this.fsQuad.render( renderer ); // 4. Apply Blur on Half res
@@ -349,7 +346,6 @@
 				this.overlayMaterial.uniforms[ 'edgeStrength' ].value = this.edgeStrength;
 				this.overlayMaterial.uniforms[ 'edgeGlow' ].value = this.edgeGlow;
 				this.overlayMaterial.uniforms[ 'usePatternTexture' ].value = this.usePatternTexture;
-				this.overlayMaterial.uniforms[ 'patternSize' ].value = this.patternSize;
 				if ( maskActive ) renderer.state.buffers.stencil.setTest( true );
 				renderer.setRenderTarget( readBuffer );
 				this.fsQuad.render( renderer );
@@ -377,7 +373,7 @@
 						value: null
 					},
 					'cameraNearFar': {
-						value: new THREE.Vector2( 0.0, 0.0 )
+						value: new THREE.Vector2( 0.5, 0.5 )
 					},
 					'textureMatrix': {
 						value: null
@@ -411,10 +407,10 @@
 
 				void main() {
 
-					/*float depth = unpackRGBAToDepth(texture2DProj( depthTexture, projTexCoord ));
+					float depth = unpackRGBAToDepth(texture2DProj( depthTexture, projTexCoord ));
 					float viewZ = - DEPTH_TO_VIEW_Z( depth, cameraNearFar.x, cameraNearFar.y );
-					float depthTest = (-vPosition.z > viewZ) ? 1.0 : 0.0;*/
-					gl_FragColor = vec4(0.0, 1.0, 1.0, 1.0);
+					float depthTest = (-vPosition.z > viewZ) ? 1.0 : 0.0;
+					gl_FragColor = vec4(0.0, depthTest, 1.0, 1.0);
 
 				}`
 			} );
@@ -435,10 +431,7 @@
 						value: new THREE.Vector3( 1.0, 1.0, 1.0 )
 					},
 					'hiddenEdgeColor': {
-						value: new THREE.Vector4( 0.0, 0.0, 0.0, 0.0 )
-					},
-					'edgeOpacity': {
-						value: 1.0
+						value: new THREE.Vector3( 1.0, 1.0, 1.0 )
 					}
 				},
 				vertexShader: `varying vec2 vUv;
@@ -453,7 +446,6 @@
 				uniform vec2 texSize;
 				uniform vec3 visibleEdgeColor;
 				uniform vec3 hiddenEdgeColor;
-				uniform float edgeOpacity;
 
 				void main() {
 					vec2 invSize = 1.0 / texSize;
@@ -469,7 +461,7 @@
 					float a2 = min(c3.g, c4.g);
 					float visibilityFactor = min(a1, a2);
 					vec3 edgeColor = 1.0 - visibilityFactor > 0.001 ? visibleEdgeColor : hiddenEdgeColor;
-					gl_FragColor = edgeOpacity * vec4(edgeColor, 1.0) * vec4(d);
+					gl_FragColor = vec4(edgeColor, 1.0) * vec4(d);
 				}`
 			} );
 
@@ -552,14 +544,11 @@
 						value: 1.0
 					},
 					'edgeGlow': {
-						value: 0.0
+						value: 1.0
 					},
 					'usePatternTexture': {
 						value: 0.0
-					},
-					'patternSize':{
-						value: 6.0
-					},
+					}
 				},
 				vertexShader: `varying vec2 vUv;
 
@@ -567,8 +556,7 @@
 					vUv = uv;
 					gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
 				}`,
-				fragmentShader: 				
-				`varying vec2 vUv;
+				fragmentShader: `varying vec2 vUv;
 
 				uniform sampler2D maskTexture;
 				uniform sampler2D edgeTexture1;
@@ -577,23 +565,22 @@
 				uniform float edgeStrength;
 				uniform float edgeGlow;
 				uniform bool usePatternTexture;
-				uniform float patternSize;
 
 				void main() {
 					vec4 edgeValue1 = texture2D(edgeTexture1, vUv);
 					vec4 edgeValue2 = texture2D(edgeTexture2, vUv);
 					vec4 maskColor = texture2D(maskTexture, vUv);
-					vec4 patternColor = texture2D(patternTexture, patternSize * vUv);
+					vec4 patternColor = texture2D(patternTexture, 6.0 * vUv);
 					float visibilityFactor = 1.0 - maskColor.g > 0.0 ? 1.0 : 0.5;
 					vec4 edgeValue = edgeValue1 + edgeValue2 * edgeGlow;
 					vec4 finalColor = edgeStrength * maskColor.r * edgeValue;
-					if(true)
-						finalColor +=  1.0 * (1.0 - maskColor.r) * (1.0 - patternColor.r);
+					if(usePatternTexture)
+						finalColor += + visibilityFactor * (1.0 - maskColor.r) * (1.0 - patternColor.r);
 					gl_FragColor = finalColor;
 				}`,
 				blending: THREE.AdditiveBlending,
-				depthTest: true,
-				depthWrite: true,
+				depthTest: false,
+				depthWrite: false,
 				transparent: true
 			} );
 
