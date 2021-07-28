@@ -102,15 +102,7 @@ function animation() {
     if (stats) {
         stats.update();
     }
-<<<<<<< HEAD
     requestAnimationFrame(animation);
-
-    if(composer){
-        //composer.render();
-    }
-=======
-    requestAnimationFrame(animation);  
->>>>>>> 51e192bdeb2db889a4725dd1bb8234f19d3b7aab
 }
 
 var lineMaterial = new THREE.LineMaterial({
