@@ -6,12 +6,7 @@ var quake = {
 var stats = null;
 var infoWindow;
 quake.infoWindow = infoWindow;
-
-let camera, renderer, composer;
-let object;
-let effectDotScreen;
-
-
+ 
 
 quake.viewMap = function () {
     quake.setBaseLayer();
@@ -75,20 +70,7 @@ quake.setThreeLayer = function () {
         renderer = gl;
         object = new THREE.Object3D();
         scene.add( object );
-
-
-        composer = new THREE.EffectComposer( renderer );
-        composer.addPass( new THREE.RenderPass( scene, camera ) );
-
-        effectDotScreen = new THREE.DotScreenPass( new THREE.Vector2( 0, 0 ), 1.5, 0.1 );
- 
-        composer.addPass( effectDotScreen );
-
-        // const effect2 = new THREE.ShaderPass( THREE.RGBShiftShader );
-        // effect2.uniforms[ 'amount' ].value = 0.0015;
-        // composer.addPass( effect2 );
-
-
+  
     }
 
     quake.threeLayer.addTo(quake.map);
@@ -120,11 +102,15 @@ function animation() {
     if (stats) {
         stats.update();
     }
+<<<<<<< HEAD
     requestAnimationFrame(animation);
 
     if(composer){
         //composer.render();
     }
+=======
+    requestAnimationFrame(animation);  
+>>>>>>> 51e192bdeb2db889a4725dd1bb8234f19d3b7aab
 }
 
 var lineMaterial = new THREE.LineMaterial({
@@ -217,11 +203,22 @@ function loadLine(e) {
     }
 }
 
-var polygonMaterial = new THREE.MeshPhongMaterial({ color: 0xffffff, transparent: true, wireframe:false, flatShading: true});
+var polygonMaterial = new THREE.MeshPhongMaterial({ color: 0xffffff, transparent: true, wireframe:false});
 
 
 let polygonMeshs = [];
-let shaderMaterial = null;
+let polygoneCirclePatternMaterial = new THREE.ShaderMaterial( {
+    transparent : true, 
+
+    uniforms: THREE.PointPatternShader.uniforms,
+
+    vertexShader: THREE.PointPatternShader.vertexShader,
+
+    fragmentShader: THREE.PointPatternShader.fragmentShader
+
+});
+
+var polygoneOutlineMaterial = new THREE.LineMaterial( { color: 0xff0000, linewidth: 1, opacity:1.0, transparent: true} );
 
 async function loadPolygon(e) {
     let seq = 0;
@@ -252,60 +249,28 @@ async function loadPolygon(e) {
 
             });
             if (polygons.length > 0) {
-
                  
                 let custom_style_res = await fetch('/test/custom_style1.json');
                 let custom_style = await custom_style_res.json();
                 let texture = canvas2ImgTexture(custom_style);
-
-                let vertShader = 
-                `
-                    varying vec2 vUv;
-            
-                    void main() {
-            
-                        vUv = uv;
-                        gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
-                    }
-                `;
-
-                let fragShader = `
-                    varying vec2 vUv;
  
-                    uniform sampler2D channel0;
+                polygoneCirclePatternMaterial.uniforms.resolution.value.copy(new THREE.Vector2(window.innerWidth, window.innerHeight));
+                var mesh = quake.threeLayer.toFlatPolygons(polygons.slice(0, Infinity), { topColor: '#fff', interactive: false, }, polygoneCirclePatternMaterial);
+ 
+                const edges = new THREE.EdgesGeometry( mesh.object3d.geometry );
+                var lineGeometry = new THREE.LineSegmentsGeometry().setPositions( edges.attributes.position.array );
+              
+                polygoneOutlineMaterial.resolution.set( window.innerWidth, window.innerHeight ); // important, for now...
+                var linePavement = new THREE.LineSegments2( lineGeometry, polygoneOutlineMaterial );
 
-                    void main() {
-                        vec2 st = vUv;
-                        float pixels = 20.0;
-                        vec4 mosaicCol = texture2D(channel0, floor(st * pixels) / pixels);
-                    
-                        float dist = distance(fract(st * pixels), vec2(0.5));
-                        dist = step(dist, 0.5);
-                        gl_FragColor = vec4(vec3(1.0), dist) * mosaicCol;
-                    }
-                `;
-
-                let uniforms = {
-                    'channel0': {
-                        value: texture
-                    }
-                };
-                let ttmaterial = new THREE.ShaderMaterial( {
-                    uniforms: uniforms,
-                    vertexShader: vertShader,
-                    fragmentShader: fragShader
-                } );
-                 
-                var mesh = quake.threeLayer.toFlatPolygons(polygons.slice(0, Infinity), { topColor: '#fff', interactive: false, }, ttmaterial);
-             
+                linePavement.position.copy(mesh.object3d.position);
+                quake.threeLayer.addMesh(linePavement); 
+                
                 mesh.customId = customId;
                 quake.threeLayer.addMesh(mesh);
                 polygonMeshs.push(mesh);
 
-                polygons.length = 0; 
-
-                object.add( mesh.object3d );
-                
+                polygons.length = 0;
             } 
         }
     } else {
@@ -720,25 +685,46 @@ function initGui() {
         });
     });
 
-    // gui.addColor(params, 'color').name('polygon color').onChange(function () {
-    //     polygonMaterial.color.set(params.color);
-    //     polygonMeshs.forEach(function (mesh) {
-    //         mesh.setSymbol(polygonMaterial);
-    //     });
-    // });
-    // gui.add(params, 'opacity', 0, 1).onChange(function () {
-    //     polygonMaterial.opacity = params.opacity;
-    //     polygonMeshs.forEach(function (mesh) {
-    //         mesh.setSymbol(polygonMaterial);
-    //     });
-    // });
+   
+    var polygoneoutlineParam = { 
+        color: 0xff0000,
+        linewidth: 1,
+        opacity:1
+    }; 
 
-    var patternSizeParam = { 
-        patternSize: 6,
-    };
-    gui.add(patternSizeParam, 'patternSize', 6, 200).onChange(function () {
-        shaderMaterial.uniforms.patternSize = patternSizeParam.patternSize;
+    gui.addColor(polygoneoutlineParam, 'color').name('outline color').onChange(function () {
+        polygoneOutlineMaterial.color.set(polygoneoutlineParam.color);
     });
+    gui.add(polygoneoutlineParam, 'linewidth', 1, 10).name('outline linewidth').onChange(function () {
+        polygoneOutlineMaterial.uniforms.linewidth.value = polygoneoutlineParam.linewidth;
+    });
+    gui.add(polygoneoutlineParam, 'opacity', 0, 1).name('outline opacity').onChange(function () {
+        polygoneOutlineMaterial.uniforms.opacity.value = polygoneoutlineParam.opacity;
+    });
+ 
+    var polygonePatternParamCircle = {
+        color: 0xff0000,
+        wh:80,
+        offset:10,
+        radius:20,
+        opacity:1
+    };
+    gui.addColor(polygonePatternParamCircle, 'color').name('patten circle color').onChange(function () {
+        polygoneCirclePatternMaterial.color.set(polygoneCirclePatternMaterial.color);
+    });
+    gui.add(polygonePatternParamCircle, 'opacity', 0, 1).name('patten circle opacity').onChange(function () {
+        polygoneCirclePatternMaterial.uniforms.opacity.value = polygonePatternParamCircle.opacity;
+    });
+    gui.add(polygonePatternParamCircle, 'wh', 0, 1).name('patten circle wh').onChange(function () {
+        polygoneCirclePatternMaterial.uniforms.wh.value = polygonePatternParamCircle.wh;
+    });
+    gui.add(polygonePatternParamCircle, 'offset', 0, 1).name('patten circle offset').onChange(function () {
+        polygoneCirclePatternMaterial.uniforms.offset.value = polygonePatternParamCircle.offset;
+    });
+    gui.add(polygonePatternParamCircle, 'radius', 0, 1).name('patten circle radius').onChange(function () {
+        polygoneCirclePatternMaterial.uniforms.radius.value = polygonePatternParamCircle.radius;
+    });
+    
 
 }
 
