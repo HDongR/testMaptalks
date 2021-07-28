@@ -123,7 +123,7 @@ function animation() {
     requestAnimationFrame(animation);
 
     if(composer){
-        composer.render();
+        //composer.render();
     }
 }
 
@@ -257,8 +257,46 @@ async function loadPolygon(e) {
                 let custom_style_res = await fetch('/test/custom_style1.json');
                 let custom_style = await custom_style_res.json();
                 let texture = canvas2ImgTexture(custom_style);
-                effectDotScreen.tDiffuse = effectDotScreen.uniforms.tDiffuse.value = texture;
-                var mesh = quake.threeLayer.toFlatPolygons(polygons.slice(0, Infinity), { topColor: '#fff', interactive: false, }, polygonMaterial);
+
+                let vertShader = 
+                `
+                    varying vec2 vUv;
+            
+                    void main() {
+            
+                        vUv = uv;
+                        gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
+                    }
+                `;
+
+                let fragShader = `
+                    varying vec2 vUv;
+ 
+                    uniform sampler2D channel0;
+
+                    void main() {
+                        vec2 st = vUv;
+                        float pixels = 20.0;
+                        vec4 mosaicCol = texture2D(channel0, floor(st * pixels) / pixels);
+                    
+                        float dist = distance(fract(st * pixels), vec2(0.5));
+                        dist = step(dist, 0.5);
+                        gl_FragColor = vec4(vec3(1.0), dist) * mosaicCol;
+                    }
+                `;
+
+                let uniforms = {
+                    'channel0': {
+                        value: texture
+                    }
+                };
+                let ttmaterial = new THREE.ShaderMaterial( {
+                    uniforms: uniforms,
+                    vertexShader: vertShader,
+                    fragmentShader: fragShader
+                } );
+                 
+                var mesh = quake.threeLayer.toFlatPolygons(polygons.slice(0, Infinity), { topColor: '#fff', interactive: false, }, ttmaterial);
              
                 mesh.customId = customId;
                 quake.threeLayer.addMesh(mesh);

@@ -89,6 +89,9 @@ quake.setThreeLayer = function () {
         const renderPass = new THREE.RenderPass( scene, camera );
         composer.addPass( renderPass );
 
+        //const clearPass = new ClearPass( '#ff0000', 0.5 );
+        //composer.addPass( clearPass );
+
         outlinePass1 = new THREE.OutlinePass( new THREE.Vector2( window.innerWidth, window.innerHeight ), scene, camera );
         outlinePass1.usePatternTexture = true;
 
