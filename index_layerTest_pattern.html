@@ -29,18 +29,17 @@
         <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/three@0.109.0/examples/js/libs/stats.min.js"></script>
         <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/animejs@3.0.0/lib/anime.min.js"></script>
         <script type="text/javascript" src="/js/dds/workerqueuemanage.js"></script>
-        <script type="text/javascript" src="/js/three/OBJLoader.js"></script>
-        <script src="/js/three/DDSLoader.js"></script>
-        <script src="/js/three/MTLLoader.js"></script>
+        <script type="text/javascript" src="/js/three/loaders/OBJLoader.js"></script>
+        <script src="/js/three/loaders/DDSLoader.js"></script>
+        <script src="/js/three/loaders/MTLLoader.js"></script>
         <script src="/js/util/bufferParser.js"></script>
-        <script src='https://unpkg.com/@turf/turf@6.3.0/turf.min.js'></script>
-        <script src="/js/three/BufferGeometryUtils.js"></script>
+        <script src='https://unpkg.com/@turf/turf@6.3.0/turf.min.js'></script> 
         <script type="text/javascript" src="/js/papaparse.min.js"></script>
         <script src="https://cdn.jsdelivr.net/npm/danfojs@0.2.7/lib/bundle.min.js"></script>
         <link rel="stylesheet" href="/css/common.css">
         <link rel="stylesheet" href="/css/base.css">
         <link rel="stylesheet" href="/css/fontawesome-all.min.css">
-        <script type="text/javascript" src="/js/three/LineMaterial.js"></script>
+   
         <script type="text/javascript" src="/js/three/effects/OutlineEffect.js"></script>
         <script type="text/javascript" src="/js/three/postprocessing/EffectComposer.js"></script>
         <script type="text/javascript" src="/js/three/postprocessing/RenderPass.js"></script>
@@ -49,7 +48,15 @@
         <script type="text/javascript" src="/js/three/shaders/DotScreenShader.js"></script>
         <script type="text/javascript" src="/js/three/shaders/CopyShader.js"></script>
         <script type="text/javascript" src="/js/three/shaders/RGBShiftShader.js"></script>
-        <script type="text/javascript" src="/js/three/postprocessing/DotScreenPass.js"></script>
+        <script type="text/javascript" src="/js/three/utils/BufferGeometryUtils.js"></script>
+
+        <script type="text/javascript" src="/js/three/lines/LineMaterial.js"></script>
+        <script type="text/javascript" src="/js/three/lines/LineSegmentsGeometry.js"></script>
+        <script type="text/javascript" src="/js/three/lines/LineSegments2.js"></script>
+        <script type="text/javascript" src="/js/three/lines/Wireframe.js"></script>
+
+        <script type="text/javascript" src="/js/three/thirdparty/PointPatternShader.js"></script>
+
     </head>
     <body>
         <div id="map" class="container">
