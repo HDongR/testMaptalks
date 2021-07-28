@@ -25,7 +25,10 @@
 			},
 			b : {
 				value: 0.0
-			}
+			},
+			u_time : {
+				value: 0.0
+			} 
 		},
 		vertexShader:
   /* glsl */
@@ -50,6 +53,7 @@
 		uniform float r;
 		uniform float g;
 		uniform float b;
+		uniform float u_time;
 
 		const float PI = 3.1415926535897932384626433832795;
 
@@ -59,6 +63,24 @@
 			
 
 			return fract(_st);
+
+
+			//_st *= _zoom;
+			// float time = u_time*_speed;
+			// if( fract(time)>0.5 ){
+			// 	if (fract( _st.y * 0.5) > 0.5){
+			// 		_st.x += fract(time)*2.0;
+			// 	} else {
+			// 		_st.x -= fract(time)*2.0;
+			// 	}
+			// } else {
+			// 	if (fract( _st.x * 0.5) > 0.5){
+			// 		_st.y += fract(time)*2.0;
+			// 	} else {
+			// 		_st.y -= fract(time)*2.0;
+			// 	}
+			// }
+			// return fract(_st);
 		}
 
 		float circle(vec2 _st, float _radius){

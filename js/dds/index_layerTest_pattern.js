@@ -90,9 +90,11 @@ quake.sortLayers = function () {
     //sortLayers.push(quake.threeLayer[3], quake.threeLayer[1], quake.threeLayer[0], quake.threeLayer[2] );
     //quake.map.sortLayers(sortLayers);   
 }
-
+var startTime = Date.now();
+var timeDelta = 0;
 
 function animation() {
+    timeDelta = Date.now() - startTime;
     // layer animation support Skipping frames
 
     quake.threeLayer._needsUpdate = !quake.threeLayer._needsUpdate;
@@ -102,6 +104,9 @@ function animation() {
     if (stats) {
         stats.update();
     }
+
+    //polygoneCirclePatternMaterial.uniforms.u_time.value = timeDelta;
+
     requestAnimationFrame(animation);
 }
 
@@ -209,6 +214,36 @@ let polygoneCirclePatternMaterial = new THREE.ShaderMaterial( {
     fragmentShader: THREE.PointPatternShader.fragmentShader
 
 });
+let polygoneHachPatternMaterial1 = new THREE.ShaderMaterial( {
+    transparent : true, 
+
+    uniforms: THREE.HatchPatternShader1.uniforms,
+
+    vertexShader: THREE.HatchPatternShader1.vertexShader,
+
+    fragmentShader: THREE.HatchPatternShader1.fragmentShader
+
+});
+let polygoneHachPatternMaterial2 = new THREE.ShaderMaterial( {
+    transparent : true, 
+
+    uniforms: THREE.HatchPatternShader2.uniforms,
+
+    vertexShader: THREE.HatchPatternShader2.vertexShader,
+
+    fragmentShader: THREE.HatchPatternShader2.fragmentShader
+
+});
+let polygoneHachPatternMaterial3 = new THREE.ShaderMaterial( {
+    transparent : true, 
+
+    uniforms: THREE.HatchPatternShader3.uniforms,
+
+    vertexShader: THREE.HatchPatternShader3.vertexShader,
+
+    fragmentShader: THREE.HatchPatternShader3.fragmentShader
+
+});
 
 var polygoneOutlineMaterial = new THREE.LineMaterial( { color: 0xff0000, linewidth: 1, opacity:1.0, transparent: true} );
 
@@ -247,7 +282,11 @@ async function loadPolygon(e) {
                 let texture = canvas2ImgTexture(custom_style);
  
                 polygoneCirclePatternMaterial.uniforms.resolution.value.copy(new THREE.Vector2(window.innerWidth, window.innerHeight));
-                var mesh = quake.threeLayer.toFlatPolygons(polygons.slice(0, Infinity), { topColor: '#fff', interactive: false, }, polygoneCirclePatternMaterial);
+                polygoneHachPatternMaterial1.uniforms.resolution.value.copy(new THREE.Vector2(window.innerWidth, window.innerHeight));
+                polygoneHachPatternMaterial2.uniforms.resolution.value.copy(new THREE.Vector2(window.innerWidth, window.innerHeight));
+                polygoneHachPatternMaterial3.uniforms.resolution.value.copy(new THREE.Vector2(window.innerWidth, window.innerHeight));
+
+                var mesh = quake.threeLayer.toFlatPolygons(polygons.slice(0, Infinity), { topColor: '#fff', interactive: false, }, polygoneHachPatternMaterial3);
  
                 const edges = new THREE.EdgesGeometry( mesh.object3d.geometry );
                 var lineGeometry = new THREE.LineSegmentsGeometry().setPositions( edges.attributes.position.array );
