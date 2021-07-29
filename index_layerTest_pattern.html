@@ -42,6 +42,8 @@
    
         <script type="text/javascript" src="/js/three/effects/OutlineEffect.js"></script>
         <script type="text/javascript" src="/js/three/postprocessing/EffectComposer.js"></script>
+        <script type="text/javascript" src="/js/three/shaders/FXAAShader.js"></script>
+
         <script type="text/javascript" src="/js/three/postprocessing/RenderPass.js"></script>
         <script type="text/javascript" src="/js/three/postprocessing/ShaderPass.js"></script>
         <script type="text/javascript" src="/js/three/postprocessing/DotScreenPass.js"></script>
@@ -59,6 +61,7 @@
         <script type="text/javascript" src="/js/three/thirdparty/HatchPatternShader1.js"></script>
         <script type="text/javascript" src="/js/three/thirdparty/HatchPatternShader2.js"></script>
         <script type="text/javascript" src="/js/three/thirdparty/HatchPatternShader3.js"></script>
+        <script type="text/javascript" src="/js/three/shaders/BasicShader.js"></script>
 
     </head>
     <body>
@@ -69,6 +72,10 @@
             <input type="checkbox" style="margin-left: 10px;" id="loadTerrain" onchange="quake.loadTerrain(this);"><span style="color:red;">loadTerrain</span>
             <input type="checkbox" style="margin-left: 10px;" id="loadLine" onchange="loadLine(this);"><span style="color:red;">loadLine</span>
             <input type="checkbox" style="margin-left: 10px;" id="loadPolygon" onchange="loadPolygon(this);"><span style="color:red;">loadPolygon</span>
+            <input type="checkbox" style="margin-left: 10px;" id="loadPolygonP1" onchange="loadPolygonP1(this);"><span style="color:red;">loadPolygonP1</span>
+            <input type="checkbox" style="margin-left: 10px;" id="loadPolygonP2" onchange="loadPolygonP2(this);"><span style="color:red;">loadPolygonP2</span>
+            <input type="checkbox" style="margin-left: 10px;" id="loadPolygonP3" onchange="loadPolygonP3(this);"><span style="color:red;">loadPolygonP3</span>
+            <input type="checkbox" style="margin-left: 10px;" id="loadPolygonP4" onchange="loadPolygonP4(this);"><span style="color:red;">loadPolygonP4</span>
             <input type="checkbox" style="margin-left: 10px;" id="loadPoint" onchange="loadPoint(this);"><span style="color:red;">loadPoint</span>
             <img id="testImg" width="50" height="50" src="/test/selectFnIcon1.png">
         </div>

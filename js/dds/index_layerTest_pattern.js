@@ -65,12 +65,7 @@ quake.setThreeLayer = function () {
 
         var light = new THREE.DirectionalLight(0xffffff);
         light.position.set(0, -10, 10).normalize();
-        scene.add(light); 
-
-        renderer = gl;
-        object = new THREE.Object3D();
-        scene.add( object );
-  
+        scene.add(light);
     }
 
     quake.threeLayer.addTo(quake.map);
@@ -114,8 +109,8 @@ var lineMaterial = new THREE.LineMaterial({
     color: 0x00ffff,
     transparent: true,
     // vertexColors: THREE.VertexColors,
-    // side: THREE.BackSide,
-    linewidth: 3, // in pixels
+    //side: THREE.DoubleSide,
+    linewidth: 1, // in pixels
     // vertexColors: THREE.VertexColors,
     // dashed: false,
     wireframe: false,
@@ -167,6 +162,12 @@ function loadLine(e) {
                 var lineStrings = maptalks.GeoJSON.toGeometry(geojson);
                 const mesh = quake.threeLayer.toFatLines(lineStrings, { interactive: false }, lineMaterial);
                 //const mesh = quake.threeLayer.toLines(lineStrings, { interactive: false }, lineMaterial);
+
+                // lineMaterial.polygonOffset = true;
+                // lineMaterial.polygonOffsetUnits = -1;
+                // lineMaterial.polygonOffsetFactor = -1;
+
+
                 mesh.customId = customId;
                 lines.push(mesh);
                 quake.threeLayer.addMesh(mesh);
@@ -200,7 +201,22 @@ function loadLine(e) {
     }
 }
 
-var polygonMaterial = new THREE.MeshPhongMaterial({ color: 0xffffff, transparent: true, wireframe:false});
+// let polygonMaterial1 = new THREE.ShaderMaterial( {
+//     transparent : true, 
+
+//     uniforms: THREE.BasicShader.uniforms,
+
+//     vertexShader: THREE.BasicShader.vertexShader,
+
+//     fragmentShader: THREE.BasicShader.fragmentShader
+
+// });
+var polygonMaterial1 = new THREE.MeshStandardMaterial({ color: 0xffff00, transparent: true, wireframe:false, opacity:0.8, depthTest:true,    polygonOffset: true,
+    polygonOffsetFactor: -1.0,
+    polygonOffsetUnits: -4.0});
+var polygonMaterial2 = new THREE.MeshStandardMaterial({ color: 0x00ff00, transparent: true, wireframe:false, opacity:0.8, depthTest:true});
+var polygonMaterial3 = new THREE.MeshStandardMaterial({ color: 0x0000ff, transparent: true, wireframe:false, opacity:0.8, depthTest:true});
+
 
 
 let polygonMeshs = [];
@@ -211,9 +227,16 @@ let polygoneCirclePatternMaterial = new THREE.ShaderMaterial( {
 
     vertexShader: THREE.PointPatternShader.vertexShader,
 
-    fragmentShader: THREE.PointPatternShader.fragmentShader
+    fragmentShader: THREE.PointPatternShader.fragmentShader, 
+    
+    depthTest:true,    polygonOffset: true,
+    polygonOffsetFactor: -2.0,
+    polygonOffsetUnits: -5.0
 
 });
+
+
+
 let polygoneHachPatternMaterial1 = new THREE.ShaderMaterial( {
     transparent : true, 
 
@@ -222,6 +245,9 @@ let polygoneHachPatternMaterial1 = new THREE.ShaderMaterial( {
     vertexShader: THREE.HatchPatternShader1.vertexShader,
 
     fragmentShader: THREE.HatchPatternShader1.fragmentShader
+    ,    polygonOffset: true,
+    polygonOffsetFactor: -3.0,
+    polygonOffsetUnits: -6.0
 
 });
 let polygoneHachPatternMaterial2 = new THREE.ShaderMaterial( {
@@ -232,6 +258,9 @@ let polygoneHachPatternMaterial2 = new THREE.ShaderMaterial( {
     vertexShader: THREE.HatchPatternShader2.vertexShader,
 
     fragmentShader: THREE.HatchPatternShader2.fragmentShader
+    ,    polygonOffset: true,
+    polygonOffsetFactor: -4.0,
+    polygonOffsetUnits: -7.0
 
 });
 let polygoneHachPatternMaterial3 = new THREE.ShaderMaterial( {
@@ -242,10 +271,14 @@ let polygoneHachPatternMaterial3 = new THREE.ShaderMaterial( {
     vertexShader: THREE.HatchPatternShader3.vertexShader,
 
     fragmentShader: THREE.HatchPatternShader3.fragmentShader
+    ,    polygonOffset: true,
+    polygonOffsetFactor: -5.0,
+    polygonOffsetUnits: -8.0
 
 });
 
 var polygoneOutlineMaterial = new THREE.LineMaterial( { color: 0xff0000, linewidth: 1, opacity:1.0, transparent: true} );
+
 
 async function loadPolygon(e) {
     let seq = 0;
@@ -276,17 +309,146 @@ async function loadPolygon(e) {
 
             });
             if (polygons.length > 0) {
+
+                var mesh = quake.threeLayer.toFlatPolygons(polygons.slice(0, Infinity), {altitude:0, topColor: '#fff', interactive: false, }, polygonMaterial1);
+     
+
+
+                // const edges = new THREE.EdgesGeometry( mesh.object3d.geometry );
+                // var lineGeometry = new THREE.LineSegmentsGeometry().setPositions( edges.attributes.position.array );
+              
+                // polygoneOutlineMaterial.resolution.set( window.innerWidth, window.innerHeight ); // important, for now...
+                // var linePavement = new THREE.LineSegments2( lineGeometry, polygoneOutlineMaterial );
+
+                // linePavement.position.copy(mesh.object3d.position);
+                // quake.threeLayer.addMesh(linePavement);  
+                mesh.customId = customId;
+                
+                quake.threeLayer.addMesh(mesh);
+                polygonMeshs.push(mesh);
+
+                polygons.length = 0;
+            } 
+        }
+    } else {
+        if (meshs && meshs.length > 0) {
+            meshs.forEach(m => {
+                m.hide();
+            });
+        }
+    }
+}
+
+async function loadPolygonP1(e) {
+    let seq = 1;
+    let customId = 'polygon_' + seq;
+    let meshs = getMesh(customId);
+    if (e.checked) {
+        if (meshs && meshs.length > 0) {
+            meshs.forEach(m => {
+                m.show();
+            });
+        } else {
+            let res = await fetch('/test/polygonTest.geojson');
+            let geojson = await res.json();
+ 
+            let polygons = [];
+
+            geojson.features.forEach(feature => {
+                const geometry = feature.geometry;
+                const type = feature.geometry.type;
+                if (['Polygon', 'MultiPolygon'].includes(type)) {
+                    const height = 0;
+                    const properties = feature.properties;
+                    properties.height = height;
+                    const polygon = maptalks.GeoJSON.toGeometry(feature);
+                    polygon.setProperties(properties);
+                    polygons.push(polygon);
+                }
+
+            });
+            if (polygons.length > 0) {
                  
                 let custom_style_res = await fetch('/test/custom_style1.json');
                 let custom_style = await custom_style_res.json();
-                let texture = canvas2ImgTexture(custom_style);
  
                 polygoneCirclePatternMaterial.uniforms.resolution.value.copy(new THREE.Vector2(window.innerWidth, window.innerHeight));
                 polygoneHachPatternMaterial1.uniforms.resolution.value.copy(new THREE.Vector2(window.innerWidth, window.innerHeight));
                 polygoneHachPatternMaterial2.uniforms.resolution.value.copy(new THREE.Vector2(window.innerWidth, window.innerHeight));
                 polygoneHachPatternMaterial3.uniforms.resolution.value.copy(new THREE.Vector2(window.innerWidth, window.innerHeight));
 
-                var mesh = quake.threeLayer.toFlatPolygons(polygons.slice(0, Infinity), { topColor: '#fff', interactive: false, }, polygoneHachPatternMaterial3);
+                var mesh = quake.threeLayer.toFlatPolygons(polygons.slice(0, Infinity), { topColor: '#fff', interactive: false, }, polygoneCirclePatternMaterial);
+ 
+                // polygoneCirclePatternMaterial.polygonOffset = true;
+                // polygoneCirclePatternMaterial.polygonOffsetUnits = 0;
+                // polygoneCirclePatternMaterial.polygonOffsetFactor = 0;
+
+
+
+                const edges = new THREE.EdgesGeometry( mesh.object3d.geometry );
+                var lineGeometry = new THREE.LineSegmentsGeometry().setPositions( edges.attributes.position.array );
+              
+                polygoneOutlineMaterial.resolution.set( window.innerWidth, window.innerHeight ); // important, for now...
+                var linePavement = new THREE.LineSegments2( lineGeometry, polygoneOutlineMaterial );
+
+                linePavement.position.copy(mesh.object3d.position);
+                quake.threeLayer.addMesh(linePavement); 
+                
+                mesh.customId = customId;
+                quake.threeLayer.addMesh(mesh);
+                polygonMeshs.push(mesh);
+
+                polygons.length = 0;
+            } 
+        }
+    } else {
+        if (meshs && meshs.length > 0) {
+            meshs.forEach(m => {
+                m.hide();
+            });
+        }
+    }
+}
+
+async function loadPolygonP2(e) {
+    let seq = 2;
+    let customId = 'polygon_' + seq;
+    let meshs = getMesh(customId);
+    if (e.checked) {
+        if (meshs && meshs.length > 0) {
+            meshs.forEach(m => {
+                m.show();
+            });
+        } else {
+            let res = await fetch('/test/polygonTest.geojson');
+            let geojson = await res.json();
+ 
+            let polygons = [];
+
+            geojson.features.forEach(feature => {
+                const geometry = feature.geometry;
+                const type = feature.geometry.type;
+                if (['Polygon', 'MultiPolygon'].includes(type)) {
+                    const height = 0;
+                    const properties = feature.properties;
+                    properties.height = height;
+                    const polygon = maptalks.GeoJSON.toGeometry(feature);
+                    polygon.setProperties(properties);
+                    polygons.push(polygon);
+                }
+
+            });
+            if (polygons.length > 0) {
+                 
+                let custom_style_res = await fetch('/test/custom_style1.json');
+                let custom_style = await custom_style_res.json();
+ 
+                polygoneCirclePatternMaterial.uniforms.resolution.value.copy(new THREE.Vector2(window.innerWidth, window.innerHeight));
+                polygoneHachPatternMaterial1.uniforms.resolution.value.copy(new THREE.Vector2(window.innerWidth, window.innerHeight));
+                polygoneHachPatternMaterial2.uniforms.resolution.value.copy(new THREE.Vector2(window.innerWidth, window.innerHeight));
+                polygoneHachPatternMaterial3.uniforms.resolution.value.copy(new THREE.Vector2(window.innerWidth, window.innerHeight));
+
+                var mesh = quake.threeLayer.toFlatPolygons(polygons.slice(0, Infinity), { topColor: '#fff', interactive: false, }, polygoneHachPatternMaterial2);
  
                 const edges = new THREE.EdgesGeometry( mesh.object3d.geometry );
                 var lineGeometry = new THREE.LineSegmentsGeometry().setPositions( edges.attributes.position.array );
@@ -312,105 +474,8 @@ async function loadPolygon(e) {
         }
     }
 }
-function canvas2ImgTexture(isCustom){
-    const patternCanvas = document.createElement('canvas');
-    const patternContext = patternCanvas.getContext('2d');
-    if(isCustom.what == 'hatch'){
-        var wh = Number(isCustom.size.wh);
-        var barWidth = Number(isCustom.size.barWidth);
-        var type = isCustom.size.type;
-        
-        patternCanvas.width = wh; //이미지 컨테이너 가로길이
-        patternCanvas.height = wh; //이미지 켄터이너 세로길이
-        var dg = Math.sqrt((wh*wh)+(wh*wh)); //대각선길이
-        var rect={ x:(wh/2)-barWidth/2, y:(wh - dg)/2, width:barWidth, height:dg };
-        patternContext.fillStyle = '#ffffff00'; //배경
-        patternContext.fillRect(0, 0, patternCanvas.width, patternCanvas.height); //배경그리기
-        
-        patternContext.translate(wh/2, wh/2);
-        
-        var angle = 45;
-        if(type == "\\"){
-          angle = 45;
-        }else if(type == "/"){
-          angle = 135;
-        }else if(type == "X"){
-          angle = 45;
-        }
-        
-        patternContext.rotate( -(Math.PI / 180) * angle );
-        patternContext.translate(-wh/2, -wh/2);
-        
-        patternContext.fillStyle = isCustom.hatchColor;
-        //patternContext.globalAlpha = Number(isCustom.opacity);
-        patternContext.fillRect( rect.x, rect.y, rect.width, rect.height );
-        
-        if(type == "\\" || type == "/"){
-            patternContext.fillRect((wh - dg)/2 - barWidth/2, (wh/2) - (barWidth/2), barWidth, barWidth); //왼쪽하단
-            patternContext.fillRect((wh + dg)/2 - barWidth/2, (wh/2) - (barWidth/2), barWidth, barWidth); //오른쪽상단
-        }else if(type == "X"){
-          patternContext.restore();
-          patternContext.translate(wh/2, wh/2);
-          patternContext.rotate( -(Math.PI / 180) * 90 );
-          patternContext.translate(-wh/2, -wh/2);
-          patternContext.fillRect( rect.x, rect.y, rect.width, rect.height );
-        }
-        
-    } else if(isCustom.what == 'dot'){
-        var wh = Number(isCustom.size.wh);
-        var offset = Number(isCustom.size.offset);
-        var radius = Number(isCustom.size.radius);
-        patternCanvas.width = wh + offset; //이미지 컨테이너 가로길이
-        patternCanvas.height = wh + offset; //이미지 켄터이너 세로길이
-        patternContext.beginPath();
-        patternContext.arc(wh/2, wh/2, radius, 0, Math.PI * 2, true);
-        patternContext.fillStyle = isCustom.dotColor;
-        //patternContext.globalAlpha = Number(isCustom.opacity);
-        patternContext.fill();
-    }
-    
-    // var canvas=document.createElement('canvas');
-    // var ctx=canvas.getContext("2d");
-    // ctx.fillStyle=ctx.createPattern(patternCanvas,'repeat');
-    // ctx.fillRect(0,0,1200,1200);
 
-    const texture = new THREE.CanvasTexture(patternContext.canvas);
-    texture.wrapS = THREE.RepeatWrapping;
-    texture.wrapT = THREE.RepeatWrapping;
-    texture.repeat.set( 5, 5 );
-    
-    //const texture = new THREE.CanvasTexture(ctx.canvas);
 
-//     NearestFilter: THREE.NearestFilter,
-//     NearestMipMapLinearFilter: THREE.NearestMipMapLinearFilter,
-//     NearestMipMapNearestFilter: THREE.NearestMipMapNearestFilter,
-//     'LinearFilter ': THREE.LinearFilter,
-//     'LinearMipMapLinearFilter (Default)': THREE.LinearMipMapLinearFilter,
-//     LinearMipmapNearestFilter: THREE.LinearMipmapNearestFilter,
-//      },
-//      magFilters: {
-//     NearestFilter: THREE.NearestFilter,
-//     'LinearFilter (Default)': THREE.LinearFilter,
-
-    // texture.minFilter = THREE.LinearMipMapLinearFilter;
-    // texture.magFilter = THREE.NearestFilter;
-    // texture.needsUpdate = true
-    // const material = new THREE.MeshPhongMaterial({
-    //     map: texture,
-    //     transparent:true,
-    //     //side: THREE.DoubleSide,
-    //     //color: '#ffff00',
-    //     //bumpMap: THREE.ImageUtils.loadTexture('http://i.imgur.com/tz483el.jpg'),
-    // });
-
-    //var dataURL = patternCanvas.toDataURL("image/jpg");
-
-    return texture;
-
-    // var dataURL = patternCanvas.toDataURL("image/jpg");
-
-    // return dataURL ; // dataURL.replace(/^data:image\/(png|jpg);base64,/, "");
-}
 
 function createMateria(fillStyle) {
     const idx = Math.floor(Math.random() * 3);
@@ -684,25 +749,22 @@ async function getContents(g) {
 }
 
 function initGui() {
-    var params = {
-        add: true,
-        color: 0x00ffff,
-        show: true,
-        opacity: 1,
-        altitude: 0,
-        interactive: false
+    var lineParams = {
+        linewidth: 1.0,
+        color: 0x00ffff, 
+        opacity: 1.0, 
     };
     var gui = new dat.GUI();
 
-    gui.addColor(params, 'color').name('line color').onChange(function () {
-        lineMaterial.color.set(params.color);
+    gui.addColor(lineParams, 'color').name('line color').onChange(function () {
+        lineMaterial.color.set(lineParams.color);
         lines.forEach(function (mesh) {
             mesh.setSymbol(lineMaterial);
         });
     });
-    gui.add(params, 'opacity', 0, 1).onChange(function () {
-        lineMaterial.uniforms.opacity.value = (params.opacity);
-        if(params.opacity == 0){
+    gui.add(lineParams, 'opacity', 0, 1).name('line opacity').onChange(function () {
+        lineMaterial.uniforms.opacity.value = lineParams.opacity;
+        if(lineParams.opacity == 0){
             lines.forEach(function (mesh) {
                 mesh.hide();
             });
@@ -715,6 +777,9 @@ function initGui() {
             mesh.setSymbol(lineMaterial);
         });
     });
+    gui.add(lineParams, 'linewidth', 1, 7).name('line width').onChange(function () {
+        lineMaterial.linewidth = lineParams.linewidth; 
+    });
 
    
     var polygoneoutlineParam = { 
@@ -722,38 +787,38 @@ function initGui() {
         linewidth: 1,
         opacity:1
     }; 
-
-    gui.addColor(polygoneoutlineParam, 'color').name('outline color').onChange(function () {
-        polygoneOutlineMaterial.color.set(polygoneoutlineParam.color);
-    });
-    gui.add(polygoneoutlineParam, 'linewidth', 1, 10).name('outline linewidth').onChange(function () {
-        polygoneOutlineMaterial.uniforms.linewidth.value = polygoneoutlineParam.linewidth;
-    });
-    gui.add(polygoneoutlineParam, 'opacity', 0, 1).name('outline opacity').onChange(function () {
-        polygoneOutlineMaterial.uniforms.opacity.value = polygoneoutlineParam.opacity;
-    });
  
     var polygonePatternParamCircle = {
         color: 0xff0000,
-        wh:80,
-        offset:10,
-        radius:20,
+        radius:0.25,
         opacity:1
     };
-    gui.addColor(polygonePatternParamCircle, 'color').name('patten circle color').onChange(function () {
-        polygoneCirclePatternMaterial.color.set(polygoneCirclePatternMaterial.color);
+    gui.addColor(polygonePatternParamCircle, 'color').name('dot color').onChange(function () {
+        polygoneOutlineMaterial.color.set(polygonePatternParamCircle.color);
+        let hex = polygonePatternParamCircle.color;
+        hex = Math.floor(hex);
+        let r = (hex >> 16 & 255) / 255;
+        let g = (hex >> 8 & 255) / 255;
+        let b = (hex & 255) / 255;
+
+        polygoneCirclePatternMaterial.uniforms.r.value = r;
+        polygoneCirclePatternMaterial.uniforms.g.value = g;
+        polygoneCirclePatternMaterial.uniforms.b.value = b;
     });
-    gui.add(polygonePatternParamCircle, 'opacity', 0, 1).name('patten circle opacity').onChange(function () {
+    gui.add(polygonePatternParamCircle, 'opacity', 0, 1).name('dot opacity').onChange(function () {
+        polygoneOutlineMaterial.uniforms.opacity.value = polygonePatternParamCircle.opacity;
+
         polygoneCirclePatternMaterial.uniforms.opacity.value = polygonePatternParamCircle.opacity;
     });
-    gui.add(polygonePatternParamCircle, 'wh', 0, 1).name('patten circle wh').onChange(function () {
-        polygoneCirclePatternMaterial.uniforms.wh.value = polygonePatternParamCircle.wh;
-    });
-    gui.add(polygonePatternParamCircle, 'offset', 0, 1).name('patten circle offset').onChange(function () {
-        polygoneCirclePatternMaterial.uniforms.offset.value = polygonePatternParamCircle.offset;
-    });
-    gui.add(polygonePatternParamCircle, 'radius', 0, 1).name('patten circle radius').onChange(function () {
-        polygoneCirclePatternMaterial.uniforms.radius.value = polygonePatternParamCircle.radius;
+
+    gui.add(polygoneoutlineParam, 'linewidth', 1, 10).name('dot linewidth').onChange(function () {
+        polygoneOutlineMaterial.uniforms.linewidth.value = polygoneoutlineParam.linewidth;
+    }); 
+ 
+    gui.add(polygonePatternParamCircle, 'radius', 1.0, 13.0).name('dot radius').onChange(function () {
+        let radius = polygonePatternParamCircle.radius;
+        let covversionRadius = 0.593 / (-radius + 14.0);
+        polygoneCirclePatternMaterial.uniforms.radius.value = covversionRadius;
     });
     
 
@@ -1377,4 +1442,16 @@ function atdPostProcess(layer) {
         geo.computeBoundingBox();
         geo.computeBoundingSphere();
     }
+}
+
+
+function canvas2Texture(color){
+    const patternCanvas = document.createElement('canvas');
+    const patternContext = patternCanvas.getContext('2d'); 
+    patternContext.fillStyle = color; //배경
+    patternContext.fillRect(0, 0, patternCanvas.width, patternCanvas.height); //배경그리기
+          
+    const texture = new THREE.CanvasTexture(patternContext.canvas);
+     
+    return texture ; // dataURL.replace(/^data:image\/(png|jpg);base64,/, "");
 }
