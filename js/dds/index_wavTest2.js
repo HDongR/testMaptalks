@@ -18,7 +18,7 @@ quake.loadWAV = function () {
 quake.viewMap = function () {
     quake.setBaseLayer();
     quake.setThreeLayer();
-    animation();
+ 
 }
 
 function animation() {
@@ -27,6 +27,8 @@ function animation() {
     if (quake.threeLayer._needsUpdate) {
         quake.threeLayer.renderScene();
     }
+
+    stats.update();
 
     //barAnim();
     barAnim2();
@@ -74,8 +76,8 @@ quake.setThreeLayer = function () {
         var light = new THREE.DirectionalLight(0xffffff);
         light.position.set(0, -10, 10).normalize();
         scene.add(light);
-        
-        
+
+        animation();
     }
 
     quake.threeLayer.addTo(quake.map); 
@@ -187,7 +189,7 @@ async function testTimeText2() {
   
     let resultData = [];
      
-    for (var i = 0; i < data.length; i+=2) {
+    for (var i = 0; i < data.length; i++) {
         //if (i == 10000) break;
         if(!data[i]){
             continue;
@@ -264,51 +266,28 @@ async function testTimeText2() {
     }
 }
 
+let blossomMesh = null;
+
 function resolutionWAV(){
-    const positionHelper = new THREE.Object3D();
     positionHelper.position.z = 1;
-    for (var i = 0; i < __data.length; i++) {
-        let __d = __data[i];
-        let splitpga_ = __d[2];
-        
 
-        let boxDepth = splitpga_[0] * 100;
-       // boxDepth = boxDepth == 0 ? 1 : boxDepth;
-        const geometry = new THREE.BoxGeometry(6, 3, boxDepth);
-        var position = quake.threeLayer.coordinateToVector3([__d[1], __d[0]]);
-        positionHelper.position.y = position.y;
-        positionHelper.position.x = position.x; 
-        positionHelper.position.z = boxDepth/2;
-        
-        positionHelper.updateWorldMatrix(true, false);
-        geometry.applyMatrix4(positionHelper.matrixWorld);
+    const geometry = new THREE.BoxGeometry(3, 3, 1);
 
-        let _color = __getColor(splitpga_[0]);
-        const color = new THREE.Color(_color);
-        const rgb = color.toArray().map(v => v * 255);
+    const material = new THREE.MeshPhongMaterial({transparent: true, opacity:0.7});
 
-        const numVerts = geometry.getAttribute('position').count;
-        const itemSize = 4;  // r, g, b
-        const colors = new Uint8Array(itemSize * numVerts);
-        colors.forEach((v, ndx) => {
-            colors[ndx] = rgb[ndx%4];
-        });
-        const normalized = true;
-        const colorAttrib = new THREE.BufferAttribute(colors, itemSize, normalized);
-        geometry.setAttribute('color', colorAttrib);
-        geometries.push(geometry);
- 
+    blossomMesh = new THREE.InstancedMesh( geometry, material, __data.length );
+    
+    blossomMesh.instanceMatrix.setUsage( THREE.DynamicDrawUsage ); // will be updated every frame
+
+    for (var i = 0; i < __data.length; i++) { 
+        blossomMesh.setColorAt( i, color);
     }
 
-    if(geometries.length > 0){
-        const mergedGeometry = THREE.BufferGeometryUtils.mergeBufferGeometries(geometries, false);
-        const material = new THREE.MeshBasicMaterial({
-            vertexColors: true,
-        });
-            
-        mergedBars = new THREE.Mesh(mergedGeometry, material);
-        quake.threeLayer.addMesh(mergedBars);
-    }
+
+    quake.threeLayer.addMesh(blossomMesh);
+
+    
+    
 
     console.timeEnd('performance'); 
 }
@@ -317,6 +296,7 @@ let test_2 = 0;
 let isEndIdx2 = 0;
 let mz = [0,2,5,7,10,11,12,13,16,17,18,19];
 let psCnt = 24;
+const color = new THREE.Color();
 
 function __getColor(p){
     if(p >= 0 && p < 0.02){
@@ -346,69 +326,129 @@ function __getColor(p){
     }
     return {x:212,y:0,z:255,w:255};
 }
+
+const positionHelper = new THREE.Object3D();
+
+let coordMap = new Map();
 function barAnim2(){
-    if(mergedBars != null){
-        let attr = mergedBars.geometry.attributes;
-        
-        let nextIdx = 0;
-        for(var i=0; i<attr.position.count; i++){
-            
-            if(i % psCnt == 0 && i >= psCnt){
-                nextIdx++;
-            }
-            let splitpga_ = __data[nextIdx][2];
-            let lon = __data[nextIdx][1];
-            let lat = __data[nextIdx][0];
-            let p = splitpga_[test_2];
+    if(blossomMesh != null){
+ 
+
+        for (var i = 0; i < __data.length; i++) {
+            let __d = __data[i];
+            let splitpga_ = __d[2]; 
+
             isEndIdx2 = splitpga_.length;
-            if(mz[0]+(nextIdx*24) == i || mz[1]+(nextIdx*24) == i || mz[2]+(nextIdx*24) == i || mz[3]+(nextIdx*24) == i  || 
-                mz[4]+(nextIdx*24) == i || mz[5]+(nextIdx*24) == i || mz[6]+(nextIdx*24) == i || mz[7]+(nextIdx*24) == i  || 
-                mz[8]+(nextIdx*24) == i || mz[9]+(nextIdx*24) == i || mz[10]+(nextIdx*24) == i || mz[11]+(nextIdx*24) == i){
-                let normalizedMultiple = 100;
-                let boxDepth = p * normalizedMultiple;
-                if(boxDepth == 0){
-                    continue;
-                }
-                boxDepth = boxDepth == 0 ? 1 : boxDepth;
-                boxDepth = 20*Math.log2(boxDepth);
-                attr.position.setZ(i, boxDepth);//array[i] = boxDepth;
-                
+ 
+            let p = splitpga_[test_2];
+            let boxDepth = p * 100;
+            let lon = __d[1];
+            let lat = __d[0];
+            let key = i;
+
+            var position = null;
+            
+            if(coordMap.has(key)){
+                position = coordMap.get(key);
+            }else{
+                position = quake.threeLayer.coordinateToVector3([lon, lat]);
+                coordMap.set(key, position);
             }
-             
-            // let normalizedMultiple = 100;
-            // let boxDepth = p * normalizedMultiple;
-            // if(boxDepth == 0){
-            //     continue;
-            // }
-            // boxDepth = boxDepth == 0 ? 1 : boxDepth;
-            // boxDepth = 20*Math.log2(boxDepth);
-            // attr.position.setZ(i, boxDepth);//array[i] = boxDepth;
-            let color = __getColor(p);
-            attr.color.setXYZW(i, color.x, color.y, color.z, color.w);
+
+            positionHelper.position.y = position.y;
+            positionHelper.position.x = position.x; 
+            positionHelper.position.z = boxDepth/2;
+
+            positionHelper.scale.z = boxDepth;
+            
+            
+
+            let color__ = __getColor(p);
+            //color.setHex( Math.random() * 0xffffff
+            color.r = color__.x/255;
+            color.g = color__.y/255;
+            color.b = color__.z/255;
+            if(boxDepth <= 0.0){
+                positionHelper.scale.z = 0;
+            }
+
+            positionHelper.updateMatrix();
+            blossomMesh.setMatrixAt( i, positionHelper.matrix );
+            blossomMesh.setColorAt( i, color );
+            
+            
+
         }
-        mergedBars.geometry.attributes.position.needsUpdate = true;
-        mergedBars.geometry.attributes.color.needsUpdate = true;
-        //mergedBars.geometry.computeBoundingBox();
-        //mergedBars.geometry.computeBoundingSphere();
-
-        // isEndIdx = b.options.splitpga_.length;
-        // let pga = b.options.splitpga_[test_];
-        // let _color = getColor(pga);
-        // b.object3d.material.color.set(_color);
-        // b.object3d.material.needsUpdate = true;
-        // b.setAltitude(pga * 1000);
-
+        blossomMesh.instanceColor.needsUpdate = true;
+        blossomMesh.instanceMatrix.needsUpdate = true;
+        
         test_2++;
         if(isEndIdx2 <= test_2){
             test_2 = 0;
-
-            for(var i=0; i<attr.position.count; i++){ 
-                let color = __getColor(0);
-                attr.position.setZ(i, 1);
-                attr.color.setXYZW(i, color.x, color.y, color.z, color.w);
-            } 
-            mergedBars.geometry.attributes.position.needsUpdate = true;
-            mergedBars.geometry.attributes.color.needsUpdate = true;
         }
+
+
+        // let attr = mergedBars.geometry.attributes;
+        
+        // let nextIdx = 0;
+        // for(var i=0; i<attr.position.count; i++){
+            
+        //     if(i % psCnt == 0 && i >= psCnt){
+        //         nextIdx++;
+        //     }
+        //     let splitpga_ = __data[nextIdx][2];
+        //     let lon = __data[nextIdx][1];
+        //     let lat = __data[nextIdx][0];
+        //     let p = splitpga_[test_2];
+        //     isEndIdx2 = splitpga_.length;
+        //     if(mz[0]+(nextIdx*24) == i || mz[1]+(nextIdx*24) == i || mz[2]+(nextIdx*24) == i || mz[3]+(nextIdx*24) == i  || 
+        //         mz[4]+(nextIdx*24) == i || mz[5]+(nextIdx*24) == i || mz[6]+(nextIdx*24) == i || mz[7]+(nextIdx*24) == i  || 
+        //         mz[8]+(nextIdx*24) == i || mz[9]+(nextIdx*24) == i || mz[10]+(nextIdx*24) == i || mz[11]+(nextIdx*24) == i){
+        //         let normalizedMultiple = 100;
+        //         let boxDepth = p * normalizedMultiple;
+        //         if(boxDepth == 0){
+        //             continue;
+        //         }
+        //         boxDepth = boxDepth == 0 ? 1 : boxDepth;
+        //         boxDepth = 20*Math.log2(boxDepth);
+        //         attr.position.setZ(i, boxDepth);//array[i] = boxDepth;
+                
+        //     }
+             
+        //     // let normalizedMultiple = 100;
+        //     // let boxDepth = p * normalizedMultiple;
+        //     // if(boxDepth == 0){
+        //     //     continue;
+        //     // }
+        //     // boxDepth = boxDepth == 0 ? 1 : boxDepth;
+        //     // boxDepth = 20*Math.log2(boxDepth);
+        //     // attr.position.setZ(i, boxDepth);//array[i] = boxDepth;
+        //     let color = __getColor(p);
+        //     attr.color.setXYZW(i, color.x, color.y, color.z, color.w);
+        // }
+        // mergedBars.geometry.attributes.position.needsUpdate = true;
+        // mergedBars.geometry.attributes.color.needsUpdate = true;
+        // //mergedBars.geometry.computeBoundingBox();
+        // //mergedBars.geometry.computeBoundingSphere();
+
+        // // isEndIdx = b.options.splitpga_.length;
+        // // let pga = b.options.splitpga_[test_];
+        // // let _color = getColor(pga);
+        // // b.object3d.material.color.set(_color);
+        // // b.object3d.material.needsUpdate = true;
+        // // b.setAltitude(pga * 1000);
+
+        // test_2++;
+        // if(isEndIdx2 <= test_2){
+        //     test_2 = 0;
+
+        //     for(var i=0; i<attr.position.count; i++){ 
+        //         let color = __getColor(0);
+        //         attr.position.setZ(i, 1);
+        //         attr.color.setXYZW(i, color.x, color.y, color.z, color.w);
+        //     } 
+        //     mergedBars.geometry.attributes.position.needsUpdate = true;
+        //     mergedBars.geometry.attributes.color.needsUpdate = true;
+        // }
     } 
 }
