@@ -328,7 +328,7 @@ function __getColor(p){
 }
 
 const positionHelper = new THREE.Object3D();
-
+let normalize = 10.0;
 let coordMap = new Map();
 function barAnim2(){
     if(blossomMesh != null){
@@ -355,13 +355,23 @@ function barAnim2(){
                 coordMap.set(key, position);
             }
 
-            positionHelper.position.y = position.y;
-            positionHelper.position.x = position.x; 
-            positionHelper.position.z = boxDepth/2;
+            if(boxDepth <= 0){
+                positionHelper.position.y = 0;
+                positionHelper.position.x = 0; 
+            }else{
+                positionHelper.position.y = position.y;
+                positionHelper.position.x = position.x;
+            }
+            
+            
+            let v_type = 'CITY';
+            if(v_type && v_type == 'CITY'){
+                
+                boxDepth = normalize*Math.log2(boxDepth);
+            }
 
+            positionHelper.position.z = boxDepth/2;
             positionHelper.scale.z = boxDepth;
-            
-            
 
             let color__ = __getColor(p);
             //color.setHex( Math.random() * 0xffffff
