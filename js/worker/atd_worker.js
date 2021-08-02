@@ -9,6 +9,9 @@ var rayPos = new THREE.Vector3();
 var rayDir = new THREE.Vector3(0, 0, -1); // Ray points down
 var geometryList = [];
 
+let atdCache = new Map();
+let coordCache = new Map();
+
 onmessage = async function (e) {
     if(e.data.what == 'TRLD'){
         const z_2 = 15;
@@ -115,6 +118,13 @@ onmessage = async function (e) {
                 geometry.vertices[i].y = v.y;
                 geometry.vertices[i].z = v.z;
                 vtxList.push(v.x, v.y, v.z);
+
+                let key = String(pdata[i][0]) + String(pdata[i][1]);
+            
+                if(atdCache.has(key)){
+                }else{
+                    atdCache.set(key, v.z);
+                }
             }
             var address = "http://xdworld.vworld.kr:8080/XDServer/requestLayerNode?APIKey=3529523D-2DBA-36B8-98F5-357E880AC0EE&Layer=" + "tile" + "&Level=" + level + "&IDX=" + IDX + "&IDY=" + IDY;
             
@@ -138,24 +148,41 @@ onmessage = async function (e) {
 
         let transData = [];
         e.data.data.forEach(d=>{
-            const vv = coordinateToVector3([d.x, d.y], 0);
-            rayPos.x = vv.x;
-            rayPos.y = vv.y;
-            ray.set(rayPos, rayDir);
-            
-            var containGeo = null;
-            for(var j=0; j<geometryList.length; j++){
-                var containGeos = geometryList[j];
-                if(containGeos.custom2DExtent.contains({x:d.x, y:d.y})){
-                    containGeo = containGeos;
+            let key = String(d.x) + String(d.y);
+
+            let altitude = null;
+            if(atdCache.has(key)){
+                altitude = atdCache.get(key);
+                transData.push({d, altitude});
+            }else{ 
+                let coord = null;
+
+                if(coordCache.has(key)){
+                    coord = coordCache.get(key);
+                }else{
+                    coord = coordinateToVector3([d.x, d.y], 0);
+                    coordCache.set(key, coord);
                 }
-            }
-            if(containGeo){
-                let intersect = ray.intersectObject(containGeo);
-                if (intersect.length > 0) {
-                    transData.push({d, altitude:intersect[0].point.z});
+    
+                rayPos.x = coord.x;
+                rayPos.y = coord.y;
+                ray.set(rayPos, rayDir); 
+
+                var containGeo = null;
+                for(var j=0; j<geometryList.length; j++){
+                    var containGeos = geometryList[j];
+                    if(containGeos.custom2DExtent.contains({x:d.x, y:d.y})){
+                        containGeo = containGeos;
+                    }
                 }
-            }
+                if(containGeo){
+                    let intersect = ray.intersectObject(containGeo);
+                    if (intersect.length > 0) {
+                        transData.push({d, altitude:intersect[0].point.z});
+                        atdCache.set(key, intersect[0].point.z);
+                    }
+                }
+            } 
         });
 
         this.postMessage({what:'TRANCOPLETE', transData, qid, wid, layer});

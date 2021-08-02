@@ -2302,7 +2302,7 @@
       }
     }
 
-    //커스텀 추가분6
+    //커스텀 폴리곤 추가분6
     function addTop(_ref2, out, cursors, opts) {
         var indices = _ref2.indices,
             vertices = _ref2.vertices,
@@ -2424,7 +2424,7 @@
       return data;
     }
 
-    //커스텀 추가분5
+    //커스텀 폴리곤 추가분5
     function innerFlatTriangulatedPolygon(preparedData, opts) {
         var indexCount = 0;
         var vertexCount = 0;
@@ -2729,7 +2729,7 @@
       return innerExtrudeTriangulatedPolygon(preparedData, opts);
     }
 
-    //커스텀 추가분4
+    //커스텀 폴리곤 추가분4
     function flatPolygon(polygons, opts) {
         opts = Object.assign({}, opts);
         var min = [Infinity, Infinity];
@@ -3442,7 +3442,7 @@
         };
     }
 
-    //커스텀 추가분3
+    //커스텀 폴리곤 추가분3
     function getFlatGeometryParams(polygon, height, layer, center, altCache) {
         var datas = getPolygonPositions(polygon, layer, center);
         var shapes = datas;
@@ -4544,7 +4544,7 @@
         return ExtrudePolygons;
     }(MergedMixin(BaseObject)));
 
-    //커스텀 추가분2
+    //커스텀 폴리곤 추가분2
     var OPTIONS$99 = {
         altitude: 0,
         height: 0,
@@ -7650,7 +7650,7 @@
             return new ExtrudePolygons(polygons, options, material, this);
         };
 
-        /**커스텀 추가분1
+        /**커스텀 폴리곤 추가분1
          * 
          * @param {*} coordinate 
          * @param {*} options 

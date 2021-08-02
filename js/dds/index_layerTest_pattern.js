@@ -371,24 +371,24 @@ async function loadPolygonP1(e) {
                  
                 let custom_style_res = await fetch('/test/custom_style1.json');
                 let custom_style = await custom_style_res.json();
- 
-                polygoneCirclePatternMaterial.uniforms.resolution.value.copy(new THREE.Vector2(window.innerWidth, window.innerHeight));
-                polygoneHachPatternMaterial1.uniforms.resolution.value.copy(new THREE.Vector2(window.innerWidth, window.innerHeight));
-                polygoneHachPatternMaterial2.uniforms.resolution.value.copy(new THREE.Vector2(window.innerWidth, window.innerHeight));
-                polygoneHachPatternMaterial3.uniforms.resolution.value.copy(new THREE.Vector2(window.innerWidth, window.innerHeight));
+                
+                let hex = custom_style.color;
+                let cc = new THREE.Color(hex);
+                polygoneCirclePatternMaterial.uniforms.r.value = cc.r;
+                polygoneCirclePatternMaterial.uniforms.g.value = cc.g;
+                polygoneCirclePatternMaterial.uniforms.b.value = cc.b;
+                polygoneCirclePatternMaterial.uniforms.resolution.value.copy(new THREE.Vector2(window.innerWidth, window.innerHeight)); 
+                polygoneCirclePatternMaterial.uniforms.opacity.value = custom_style.opacity; 
+                polygoneCirclePatternMaterial.uniforms.radius.value = 0.593 / (-Number(custom_style.size.radius) + 14.0);
 
                 var mesh = quake.threeLayer.toFlatPolygons(polygons.slice(0, Infinity), { topColor: '#fff', interactive: false, }, polygoneCirclePatternMaterial);
- 
-                // polygoneCirclePatternMaterial.polygonOffset = true;
-                // polygoneCirclePatternMaterial.polygonOffsetUnits = 0;
-                // polygoneCirclePatternMaterial.polygonOffsetFactor = 0;
-
-
 
                 const edges = new THREE.EdgesGeometry( mesh.object3d.geometry );
                 var lineGeometry = new THREE.LineSegmentsGeometry().setPositions( edges.attributes.position.array );
               
                 polygoneOutlineMaterial.resolution.set( window.innerWidth, window.innerHeight ); // important, for now...
+                polygoneOutlineMaterial.color = cc;
+                polygoneOutlineMaterial.opacity = custom_style.opacity;
                 var linePavement = new THREE.LineSegments2( lineGeometry, polygoneOutlineMaterial );
 
                 linePavement.position.copy(mesh.object3d.position);
@@ -1246,6 +1246,9 @@ function mergeAtdWorkerCallback(e) {
     }
 }
 
+let polygonAddedAltitude = 0.08;
+let lineAddedAltitude = 0.2;
+
 function atdPostProcess(layer) {
     let rcvData = atdData.get(layer);
     atdData.delete(layer);
@@ -1346,7 +1349,7 @@ function atdPostProcess(layer) {
                 let vd = value[i];
                 let x = vd.x;
                 let y = vd.y;
-                let altitude = vd.altitude + 0.2;
+                let altitude = vd.altitude + lineAddedAltitude;
 
                 if (i == 0 || i == value.length - 1) {
                     geo.attributes.instanceStart.array[selIdx + endPos] = altitude;
@@ -1419,7 +1422,7 @@ function atdPostProcess(layer) {
                 let vd = value[i];
                 let x = vd.x;
                 let y = vd.y;
-                let altitude = vd.altitude + 0.08;
+                let altitude = vd.altitude + polygonAddedAltitude;
 
                 let zIdx = (i*3)+2;
                 geo.attributes.position.array[zIdx + endPos] = altitude;
