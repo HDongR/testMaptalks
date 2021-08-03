@@ -8291,7 +8291,7 @@
         };
         ThreeRenderer.prototype._initThreeRenderer = function () {
             this.matrix4 = new THREE.Matrix4();
-            var renderer = new THREE.WebGLRenderer({ 'context': this.gl, alpha: true, /*antialias: true, logarithmicDepthBuffer: true*/ });
+            var renderer = new THREE.WebGLRenderer({ 'context': this.gl, alpha: true, /*antialias: true,logarithmicDepthBuffer: true */ });
             renderer.autoClear = false;
             renderer.setClearColor(new THREE.Color(1, 1, 1), 0);
             renderer.setSize(this.canvas.width, this.canvas.height);

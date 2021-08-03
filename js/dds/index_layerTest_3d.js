@@ -106,6 +106,21 @@ function animation() {
     if (quake.threeLayer._needsUpdate) {
         quake.threeLayer.renderScene();
     }
+    if(quake.threeLayer._renderer.camera){
+        //console.log('maptalks', quake.map.cameraFar, quake.map.cameraNear, quake.map._fov);
+
+        //console.log('three', quake.threeLayer._renderer.camera.far, quake.threeLayer._renderer.camera.near, quake.threeLayer._renderer.camera.fov);
+        
+        quake.threeLayer._renderer.camera.far = quake.map.cameraFar;
+        quake.threeLayer._renderer.camera.near = quake.map.cameraNear;
+        quake.threeLayer._renderer.camera.fov = quake.map._fov;
+        quake.threeLayer._renderer.camera.position.x = quake.map.cameraPosition[0];
+        quake.threeLayer._renderer.camera.position.y = quake.map.cameraPosition[1];
+        quake.threeLayer._renderer.camera.position.z = quake.map.cameraPosition[2];
+
+
+    }
+
     if (stats) {
         stats.update();
     }
@@ -1337,6 +1352,7 @@ function mergeAtdWorkerCallback(e) {
                 l.forEach(_l => {
                     rcvData.push(..._l);
                 });
+                l.length = 0;
     
                 for (var member in value) delete value[member];
                 atdReceivedData.delete(key);
