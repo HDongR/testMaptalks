@@ -10,7 +10,6 @@ var rayDir = new THREE.Vector3(0, 0, -1); // Ray points down
 var geometryList = [];
 
 let atdCache = new Map();
-let coordCache = new Map();
 
 onmessage = async function (e) {
     if(e.data.what == 'TRLD'){
@@ -129,8 +128,10 @@ onmessage = async function (e) {
             var address = "http://xdworld.vworld.kr:8080/XDServer/requestLayerNode?APIKey=3529523D-2DBA-36B8-98F5-357E880AC0EE&Layer=" + "tile" + "&Level=" + level + "&IDX=" + IDX + "&IDY=" + IDY;
             
             var material = new THREE.MeshBasicMaterial({/*color: 'hsl(0,100%,50%)',*/});
-            var plane = new THREE.Mesh(geometry, material);   
-            plane.custom2DExtent = new maptalks.Extent(sData[0], sData[1], eData[0], eData[1]);
+            var plane = new THREE.Mesh(geometry, material);
+            let e1 = coordinateToVector3([sData[0], sData[1]], 0);
+            let e2 = coordinateToVector3([eData[0], eData[1]], 0);
+            plane.custom2DExtent = new maptalks.Extent(e1.x, e1.y, e2.x, e2.y);
             geometryList.push(plane);
             //tileData.push({sData, eData, vtxList, address});
         }
@@ -153,19 +154,11 @@ onmessage = async function (e) {
             let altitude = null;
             if(atdCache.has(key)){
                 altitude = atdCache.get(key);
-                transData.push({d, altitude});
-            }else{ 
-                let coord = null;
+                transData.push(altitude);
+            }else{
 
-                if(coordCache.has(key)){
-                    coord = coordCache.get(key);
-                }else{
-                    coord = coordinateToVector3([d.x, d.y], 0);
-                    coordCache.set(key, coord);
-                }
-    
-                rayPos.x = coord.x;
-                rayPos.y = coord.y;
+                rayPos.x = d.x;
+                rayPos.y = d.y;
                 ray.set(rayPos, rayDir); 
 
                 var containGeo = null;
@@ -178,7 +171,7 @@ onmessage = async function (e) {
                 if(containGeo){
                     let intersect = ray.intersectObject(containGeo);
                     if (intersect.length > 0) {
-                        transData.push({d, altitude:intersect[0].point.z});
+                        transData.push(intersect[0].point.z);
                         atdCache.set(key, intersect[0].point.z);
                     }
                 }

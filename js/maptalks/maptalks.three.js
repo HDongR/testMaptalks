@@ -8301,10 +8301,8 @@
             var scene = this.scene = new THREE.Scene();
             var map = this.layer.getMap();
             var fov = map.getFov() * Math.PI / 180;
-            
-            /*var zNear = 1000;
-            var zFar = 3500000;
-            var camera = this.camera = new THREE.PerspectiveCamera(100, map.width / map.height, zNear, zFar);*/
+             
+            //var camera = this.camera = new THREE.PerspectiveCamera(fov, map.width / map.height, map.cameraNear / 1000, map.cameraFar * 1000);
             var camera = this.camera = new THREE.PerspectiveCamera(fov, map.width / map.height, map.cameraNear, map.cameraFar);
             camera.matrixAutoUpdate = false;
             this._syncCamera();

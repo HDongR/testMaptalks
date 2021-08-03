@@ -9,7 +9,7 @@
 				value: 1.0
 			},
 			wh: {
-				value: 50.0
+				value: 16.0
 			},
 			barWidth: {
 				value: 5.0
@@ -51,12 +51,6 @@
 		uniform float b;
 		uniform float u_time;
 
-		float plot(vec2 st, float k) {    
-            return step(1. - k + 0.5, abs(st.x - st.y));
-        }
-        float plot2(vec2 st, float k) {
-            return step(abs(st.x - st.y), k-0.5);
-        }
         vec2 movingTiles(vec2 _st, float _zoom, float _speed){
             _st *= _zoom;
             return fract(_st);
@@ -64,24 +58,23 @@
         void main() {
             vec2 st = gl_FragCoord.xy/resolution;
          
-            st = movingTiles(st,31.832,1.236);
+            st = movingTiles(st,wh,1.236);
 
-            float pct = 1.0; 
-            float k = 1.000;
-            float width = 0.17;
+            float pct = 1.; 
+            float k = 1.;
             if(
-				(st.y + st.x >= k - width && st.y + st.x <= k+width) 
+				(st.y + st.x >= k - barWidth && st.y + st.x <= k + barWidth) 
 				||
-				(st.y + st.x <= k - 1. + width)
+				(st.y + st.x <= k - 1. + barWidth)
 				||
-				(st.y + st.x >= k + 1. - width)
+				(st.y + st.x >= k + 1. - barWidth)
 			){
                 pct = 1.0;
             }else{
                 pct = 0.0;
             }
 
-            gl_FragColor = vec4(vec3(r,g,b), pct);
+            gl_FragColor = opacity * vec4(vec3(r,g,b), pct);
         }`
 	};
 
