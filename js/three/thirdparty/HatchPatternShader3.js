@@ -6,7 +6,7 @@
 				value: new THREE.Vector2( 1, 1 )
 			},
 			opacity: {
-				value: 1.0
+				value: 0.8
 			},
 			wh: {
 				value: 16.0

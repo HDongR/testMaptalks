@@ -4594,9 +4594,6 @@
             var altCache = {};
             var difcn =0;
             for (var i = 0; i < len; i++) {
-                if(i==42){
-                    console.log('debug');
-                }
                 var polygon = polygons[i];
                 var height = (isGeoJSONPolygon(polygon) ? polygon['properties'] : polygon.getProperties() || {}).height || 0;
                 

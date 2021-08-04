@@ -150,11 +150,16 @@ onmessage = async function (e) {
         let transData = [];
         e.data.data.forEach(d=>{
             let key = String(d.x) + String(d.y);
+            let customId = d.customId;
 
-            let altitude = null;
+            let savedData = null;
             if(atdCache.has(key)){
-                altitude = atdCache.get(key);
-                transData.push(altitude);
+                savedData = atdCache.get(key);
+                if(customId){
+                    transData.push({customId:savedData.customId, altitude:savedData.altitude});
+                }else{
+                    transData.push(savedData);
+                }
             }else{
 
                 rayPos.x = d.x;
@@ -170,10 +175,24 @@ onmessage = async function (e) {
                 }
                 if(containGeo){
                     let intersect = ray.intersectObject(containGeo);
-                    if (intersect.length > 0) {
-                        transData.push(intersect[0].point.z);
-                        atdCache.set(key, intersect[0].point.z);
+                    if (intersect.length > 0) { 
+                        if(customId){
+                            transData.push({customId:customId, altitude:intersect[0].point.z});
+                            atdCache.set(key, {customId:customId, altitude:intersect[0].point.z});
+                        }else{
+                            transData.push(intersect[0].point.z);
+                            atdCache.set(key, intersect[0].point.z);
+                        } 
                     }
+                }else{
+                    if(customId){
+                        transData.push({customId:customId, altitude:0});
+                        atdCache.set(key, {customId:customId, altitude:0});
+                    }else{
+                        transData.push(0);
+                        atdCache.set(key, 0);
+                    } 
+                    
                 }
             } 
         });
