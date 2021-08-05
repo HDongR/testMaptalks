@@ -14,7 +14,6 @@ quake.viewMap = function () {
 
     setAtdWorkers();
 
-
     quake.setThreeLayer();
 
     quake.sortLayers();
@@ -88,6 +87,8 @@ quake.setThreeLayer = function () {
         effectFXAA = new THREE.ShaderPass( THREE.FXAAShader );
         effectFXAA.uniforms[ 'resolution' ].value.set( 1 / window.innerWidth, 1 / window.innerHeight );
         composer.addPass( effectFXAA );
+
+        scene.fog = new THREE.Fog( 0x000000, 1500, 2100 );
     }
 
     quake.threeLayer.addTo(quake.map);
@@ -105,7 +106,7 @@ quake.markerLayerToThreeLayer = function(){
         let c = markerChild[selectPointIdx];
         if(c.customId){
             if(c.customId.split('_')[1] == 'point'){
-                quake.threeLayer.addMesh(c.__parent);
+                quake.threeLayer.addMesh(c);
             }else{
                 selectPointIdx++;
             }
@@ -139,12 +140,12 @@ quake.threeLayerToMarkerLayer = function(){
         let c = threeChild[selectPointIdx];
         if(c.customId){
             if(c.customId.split('_')[1] == 'point'){
-                quake.threeLayer.addMesh(c.__parent);
+                quake.threeLayer.addMesh(c);
 
-                quake.markerLayer.addMesh(c.__parent);
-                quake.threeLayer.removeMesh(c.__parent);
+                quake.markerLayer.addMesh(c);
+                quake.threeLayer.removeMesh(c);
                
-                c.__parent.getObject3d().geometry.dispose();
+                c.geometry.dispose();
             }else{
                 selectPointIdx++;
             }
@@ -747,12 +748,10 @@ async function loadPolygonP3(e) {
 function createMateria(fillStyle) {
     const idx = Math.floor(Math.random() * 3);
     return new THREE.SpriteMaterial({
-        fog: true,
        // size: 1,
         sizeAttenuation: false,
         //depthWrite: false,
         map: new THREE.TextureLoader().load('/test/selectFnIcon' + (idx + 1) + '.png'),
-        //刚刚创建的粒子贴图就在这里用上
     });
 }
  
@@ -802,7 +801,9 @@ function loadPoint(e) {
                 for(var i=0; i<lnglats.length; i++){
                     let lnglat = lnglats[i];
                     const mm = createMateria();
-
+                    mm.onBeforeCompile = function (shader) {
+                        console.log(shader);
+                    }
                     //mm.color.setHSL( 0.5 * Math.random(), 0.75, 0.5 );
                     //mm.map.offset.set( - 0.5, - 0.5 );
                     //mm.map.repeat.set( 2, 2 );
@@ -870,7 +871,7 @@ function loadPoint(e) {
                 
                 if(quake.is3D){
                     quake.threeLayer.addMesh(points);
-                    quake.convert3DWorker('point', points.map(p=>p.object3d));
+                    quake.convert3DWorker('point', points);
                     //quake.convert3DWorker('polygonLine', linePavement);
                 }else{
                     quake.markerLayer.addMesh(points);
@@ -1455,15 +1456,9 @@ quake.convert3DWorker = function(what, object3d){
         for(var i=0; i<object3d.length; i++){
             let o3 = object3d[i]; 
             
-            let centerPos = o3.position;
-            let geo = o3.geometry;
-
-            for(var j=0; j<geo.attributes.position.array.length; j+=3){
-                let resultX = centerPos.x + geo.attributes.position.array[j];
-                let resultY = centerPos.y + geo.attributes.position.array[j+1];
-                LngLatData.push({customId:o3.customId, x:resultX, y:resultY});
-                customId = o3.customId;
-            }
+            let centerPos = o3.position; 
+            LngLatData.push({customId:o3.customId, x:centerPos.x, y:centerPos.y});
+            customId = o3.customId; 
         }
         customId = customId.split('_');
         customId = customId[0] + '_' + customId[1];
@@ -1713,7 +1708,7 @@ function mergeAtdWorkerCallback(e) {
 
 let polygonAddedAltitude = 0.08;
 let lineAddedAltitude = 0.2;
-let pointAddedAltitude = 0.5;
+let pointAddedAltitude = 0.9;
 
 function atdPostProcess(layer) {
     let rcvData = atdData.get(layer);
@@ -1733,9 +1728,13 @@ function atdPostProcess(layer) {
                 childPos.push(i);
             }
             
-        }else if(object3d && object3d.customId && object3d.customId == layer){ //three mesh
-            childPos.push(i);
-            break;
+        }else if(object3d && object3d.customId){ //three mesh
+            if(object3d.customId == layer){ //polygon, line
+                childPos.push(i);
+                break;
+            }else if(customId[1] == 'point' && object3d.customId.includes(layer)){ //point
+                childPos.push(i);
+            }
         }
     }
 
@@ -1799,16 +1798,10 @@ function atdPostProcess(layer) {
             }
 
             let rd = rcvData[i];
-            if(rd && rd.customId == c.object3d.customId){
+            if(rd && rd.customId == c.customId){
                 let altitude = rd.altitude + pointAddedAltitude;
-                geo.attributes.position.array[2] = altitude;
+                c.position.z = altitude;
                 geo.altitude = rd.altitude;
-                geo.attributes.position.needsUpdate = true;
-                geo.computeBoundingBox();
-                geo.computeBoundingSphere();
-
-                c.options.height = rd.altitude/0.008;
-                c.options.positions.z = altitude
             }
         }
     }

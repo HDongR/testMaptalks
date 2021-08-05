@@ -663,7 +663,7 @@ async function loadPolygonP3(e) {
 
 
 function createMateria(fillStyle) {
-    const idx = Math.floor(Math.random() * 3);
+    const idx = 0;//Math.floor(Math.random() * 3);
     return new THREE.PointsMaterial({
         // size: 10,
         sizeAttenuation: false,
@@ -731,6 +731,7 @@ function loadPoint(e) {
                 for(var i=0; i<lnglats.length; i++){
                     let lnglat = lnglats[i];
                     const material = createMateria();
+                     
                     const point = quake.threeLayer.toPoint(lnglat.coordinate, { height: 0, properties: lnglat.properties }, material);
                     point.object3d.customId = seq + '_point' + '_' + i;
 
@@ -759,7 +760,7 @@ function loadPoint(e) {
                     //event test
                     ['click'].forEach(function (eventType) {
                         point.on(eventType, async function (e) {
-                            console.log(e.type, e);
+                            //console.log(e.type, e);
                             let data = e.target.options.properties;
                          
                             if (e.type === 'click' && data) {
@@ -985,10 +986,10 @@ async function getContents(g) {
         content += '<tr><th>진도</th><td style="text-align:left;padding-left:10px;">' + g.options.properties.int + '</td></tr>';
         //                            content += '<tr><td  colspan="2" style="text-align:left;padding-left:10px;"><img src="'+ g.properties.img +'"></img></td></tr>';
     } else {//gis기능이벤트
-        console.log('기능마크팝업');
-        console.log(g.options.properties.seq);
-        console.log(g.options.properties.lat);
-        console.log(g.options.properties.lon);
+        // console.log('기능마크팝업');
+        // console.log(g.options.properties.seq);
+        // console.log(g.options.properties.lat);
+        // console.log(g.options.properties.lon);
         //복수개의 정보가 있을 수 있으므로 DB에서 데이타를 다시 가져온다.
         var params = {
             'sol_m_seq': g.options.properties.seq,

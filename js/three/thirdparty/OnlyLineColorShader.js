@@ -1,6 +1,6 @@
 ( function () {
 
-	const DefaultColorShader = {
+	const OnlyLineColorShader = {
 		uniforms: {
 			resolution: {
 				value: new THREE.Vector2( 1, 1 )
@@ -44,11 +44,11 @@
 		uniform float u_time;
 
 		void main() {
-			vec2 st = gl_FragCoord.xy/(resolution.xy);
-			gl_FragColor = opacity * vec4(vec3(r,g,b), 1.);
+			//vec2 st = gl_FragCoord.xy/(resolution.xy);
+			gl_FragColor = opacity * vec4(vec3(r,g,b), 0.);
 		}`
 	};
 
-	THREE.DefaultColorShader = DefaultColorShader;
+	THREE.OnlyLineColorShader = OnlyLineColorShader;
 
 } )();
