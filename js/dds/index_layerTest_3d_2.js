@@ -180,10 +180,10 @@ function animation() {
     timeDelta = Date.now() - startTime;
     // layer animation support Skipping frames
 
-    quake.threeLayer._needsUpdate = !quake.threeLayer._needsUpdate;
-    if (quake.threeLayer._needsUpdate) {
-        quake.threeLayer.renderScene();
-    }
+    // quake.threeLayer._needsUpdate = !quake.threeLayer._needsUpdate;
+    // if (quake.threeLayer._needsUpdate) {
+    //     quake.threeLayer.renderScene();
+    // }
 
     quake.markerLayer._needsUpdate = !quake.markerLayer._needsUpdate;
     if (quake.markerLayer._needsUpdate) {
@@ -894,6 +894,139 @@ function loadPoint(e) {
                 for(var i=0; i<lnglats.length; i++){
                     let lnglat = lnglats[i];
                     const material = createMateria();
+                     
+                    const point = quake.threeLayer.toPoint(lnglat.coordinate, { height: 0, properties: lnglat.properties }, material);
+                    point.object3d.customId = seq + '_point' + '_' + i;
+
+
+                    //for (var i = 0; i < point.object3d.geometry.attributes.position.count; i++) {
+                    //point.object3d.geometry.attributes.position.setZ(i, 0.1);
+                    //}
+                    //infowindow test
+
+                    point.setInfoWindow(//options
+                        {
+                            containerClass: 'maptalks-msgBox',
+                            autoPan: false,
+                            autoCloseOn: null,
+                            autoOpenOn: 'click',
+                            width: 0,
+                            height: 0,
+                            minHeight: 0,
+                            custom: true,
+                            title: '',
+                            content: '',
+                            animation: 'fade',
+                            showTimeout: 200
+                        }
+                    );
+                    //event test
+                    ['click'].forEach(function (eventType) {
+                        point.on(eventType, async function (e) {
+                            //console.log(e.type, e);
+                            let data = e.target.options.properties;
+                         
+                            if (e.type === 'click' && data) {
+                                const value = data.value;
+                                quake.infoWindow = this.getInfoWindow();
+                                let options = await getContents(point);
+
+                                quake.infoWindow.setContent(options.content);
+                                if (quake.infoWindow && (!quake.infoWindow._owner)) {
+                                    quake.infoWindow.addTo(this).show({ x: e.target.options.coordinate[0], y: e.target.options.coordinate[1] });
+                                }
+
+                                //this.openInfoWindow(e.coordinate);
+                            }
+                        });
+                    });
+                    points.push(point);
+                }
+                
+
+                if(quake.is3D){
+                    quake.threeLayer.addMesh(points);
+                    quake.convert3DWorker('point', points.map(p=>p.object3d));
+                    //quake.convert3DWorker('polygonLine', linePavement);
+                }else{
+                    quake.markerLayer.addMesh(points);
+                }
+                 
+            });
+        }
+    } else {
+        if (meshs && meshs.length > 0) {
+            meshs.forEach(m => {
+                if(m.__parent){
+                    m.__parent.hide();
+                }else{
+                    m.visible = false;
+                }
+            });
+        }
+    }
+}
+
+function loadPoint2(e) {
+    let seq = 262;
+    let meshs = quake.getMesh(seq);
+    if (e.checked) {
+        if (meshs && meshs.length > 0) {
+            meshs.forEach(m => {
+                if(m.__parent){
+                    m.__parent.show();
+                }else{
+                    m.visible = true;
+                }
+            });
+        } else {
+            fetch('/test/pointTest2.geojson').then((function (res) {
+                return res.json();
+            })).then(function (json) {
+                let dataInfo = json.dataInfo;
+                let dataList = json.dataList;
+
+                var lon;
+                var lat;
+                var addr;
+                $.each(dataList, function (idx, obj) {
+                    //console.log(obj);
+                    if (obj.map_opt == "LON") {
+                        lon = obj.data_field_nm;//x?
+                    } else if (obj.map_opt == "LAT") {
+                        lat = obj.data_field_nm;//x?
+                    } else if (obj.map_opt == "ADDR") {
+                        addr = obj.data_field_nm;//x?
+                    }
+                });
+
+                const lnglats = [];
+                dataInfo.forEach(di => {
+                    di.seq = seq;
+                    di.lon = di.x8;
+                    di.lat = di.x7;
+                    lnglats.push({ coordinate: [di.x8, di.x7], properties: di });
+                });
+
+                let points = [];
+
+                for(var i=0; i<lnglats.length; i++){
+                    let lnglat = lnglats[i];
+                    const material = new THREE.PointsMaterial({
+                        // size: 10,
+                        sizeAttenuation: false,
+                        // alphaTest: 0.5,
+                        // vertexColors: THREE.VertexColors,
+                        transparent: true,
+                        color: 0xffffff,
+                        size: 25,
+                        //transparent: true, //使材质透明
+                        //blending: THREE.AdditiveBlending,
+                        depthTest: false, //深度测试关闭，不消去场景的不可见面
+                        //depthWrite: false,
+                        map: new THREE.TextureLoader().load('/test/selectFnIcon4.png'),
+                        //刚刚创建的粒子贴图就在这里用上
+                    });
                      
                     const point = quake.threeLayer.toPoint(lnglat.coordinate, { height: 0, properties: lnglat.properties }, material);
                     point.object3d.customId = seq + '_point' + '_' + i;
