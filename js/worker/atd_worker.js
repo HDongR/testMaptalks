@@ -1,4 +1,4 @@
-importScripts('/js/preloading-sw/three104.js');
+importScripts('/js/preloading-sw/three_127.js');
 importScripts('/js/preloading-sw/maptalks_removeDom.js');
 importScripts('/js/preloading-sw/maptalks.three_removeDom.js');
 importScripts('/js/preloading-sw/proj4.js');
@@ -110,12 +110,11 @@ onmessage = async function (e) {
             let vtxList = [];
 
             var geometry = new THREE.PlaneGeometry(1, 1, 64, 64);
-            for (var i = 0, l = geometry.vertices.length; i < l; i++) {
+            for (var i = 0; i < geometry.attributes.position.count; i++) {
                 const z = pdata[i][2]/zResol;//quake.threeLayer.distanceToVector3(pdata[i][2], pdata[i][2]).x;
                 const v = coordinateToVector3([pdata[i][0],pdata[i][1]], z);
-                geometry.vertices[i].x = v.x;
-                geometry.vertices[i].y = v.y;
-                geometry.vertices[i].z = v.z;
+                geometry.attributes.position.setXYZ(i, v.x, v.y, v.z);
+               
                 vtxList.push(v.x, v.y, v.z);
 
                 let key = String(pdata[i][0]) + String(pdata[i][1]);
@@ -156,7 +155,7 @@ onmessage = async function (e) {
             if(atdCache.has(key)){
                 savedData = atdCache.get(key);
                 if(customId){
-                    transData.push({customId:savedData.customId, altitude:savedData.altitude});
+                    transData.push({customId:customId, altitude:savedData.altitude});
                 }else{
                     transData.push(savedData);
                 }

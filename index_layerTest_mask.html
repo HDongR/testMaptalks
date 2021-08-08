@@ -24,7 +24,7 @@
         <!-- <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/maptalks/dist/maptalks.js"></script> -->
         <!-- <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/three@0.104.0/build/three.min.js"></script> -->
         <script type="text/javascript" src="/js/three/three_127.js"></script>
-        <script type="text/javascript" src="/js/maptalks/maptalks.three.js"></script>
+        <script type="text/javascript" src="/js/maptalks/maptalks.three_16.js"></script>
         <!-- <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/maptalks.three@latest/dist/maptalks.three.js"></script> -->
         <script type="text/javascript" src="/js/three/libs/stats.min.js"></script>
         <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/animejs@3.0.0/lib/anime.min.js"></script>
@@ -63,7 +63,8 @@
         <script type="text/javascript" src="/js/three/thirdparty/HatchPatternShader2.js"></script>
         <script type="text/javascript" src="/js/three/thirdparty/HatchPatternShader3.js"></script>
         <script type="text/javascript" src="/js/three/shaders/BasicShader.js"></script>
-        <script type="text/javascript" src="/js/three/thirdparty/DefaultColorShader.js"></script>
+        <script type="text/javascript" src="/js/three/thirdparty/OnlyLineColorShader.js"></script> 
+        <script type="text/javascript" src="/js/three/thirdparty/PointMarkerShader.js"></script> 
 
     </head>
     <body>
@@ -79,13 +80,13 @@
             <input type="checkbox" style="margin-left: 10px;" id="loadPolygonP3" onchange="loadPolygonP3(this);"><span style="color:red;">loadPolygonP3</span>
             <input type="checkbox" style="margin-left: 10px;" id="loadPolygonP4" onchange="loadPolygonP4(this);"><span style="color:red;">loadPolygonP4</span>
             <input type="checkbox" style="margin-left: 10px;" id="loadPoint" onchange="loadPoint(this);"><span style="color:red;">loadPoint</span>
-            <input type="checkbox" style="margin-left: 10px;" id="loadPoint" onchange="loadPoint2(this);"><span style="color:red;">loadPoint2</span>
+            <input type="checkbox" style="margin-left: 10px;" id="testAlphaMap" onchange="testAlphaMap(this);"><span style="color:red;">testAlphaMap</span>
             <img id="testImg" width="50" height="50" src="/test/selectFnIcon1.png">
         </div>
         <!-- <canvas id="c" width="1024" height="700"></div> -->
     </body>
 
-    <script type="text/javascript" src="/js/dds/index_layerTest_3d_point_splite.js"></script>
+    <script type="text/javascript" src="/js/dds/index_layerTest_mask.js"></script>
     <script>quake.viewMap();</script>
     <!-- <script type="module" src="js/test.js"></script> -->
     <script type="module">
