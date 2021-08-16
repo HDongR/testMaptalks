@@ -74,8 +74,8 @@ quake.setThreeLayer = function () {
         light.position.set(0, -10, 10).normalize();
         scene.add(light);
 
-        quake.threeLayer._renderer.scene2 = new THREE.Scene();
-        quake.threeLayer._renderer.scene2.add(light);
+        //quake.threeLayer._renderer.scene2 = new THREE.Scene();
+        //quake.threeLayer._renderer.scene2.add(light);
 
         quake.prevCameraInfo = {far:camera.far, near:camera.near, fov:camera.fov, position:camera.position};
         stats = new Stats();
@@ -238,7 +238,7 @@ function animation() {
 
     let _this = quake.threeLayer._renderer;
 
-    var time = maptalks.Util.now();
+    //var time = maptalks.Util.now();
     // Make sure to execute only once in a frame
     // if (time - _this._renderTime >= 16) {
     //     _this.layer._callbackBaseObjectAnimation();
@@ -248,7 +248,7 @@ function animation() {
 
     _this.context.clearColor();
 
-    _this.context.render(_this.scene2, _this.camera);
+    //_this.context.render(_this.scene2, _this.camera);
 
 
     _this.context.render(_this.scene, _this.camera);
@@ -266,7 +266,8 @@ var lineMaterial = new THREE.LineMaterial({
     // vertexColors: THREE.VertexColors,
     // dashed: false,
     wireframe: false,
-    depthTest: true,
+    depthTest: false,
+    depthWrite: false,
     blending: THREE.NormalBlending ,
 });
 
@@ -329,7 +330,7 @@ function loadLine(e) {
                 // lineMaterial.polygonOffsetFactor = -1;
 
                 lineMesh.object3d.customId = seq + '_line';
-                    
+                lineMesh.object3d.renderOrder = 0;
                 quake.threeLayer.addMesh(lineMesh);
  
 
@@ -1038,8 +1039,12 @@ async function testAlphaMap(){
     polygonMesh.object3d.customId = '111_polygon';
     polygonMesh.object3d.position.z = 2;
     polygonMesh.object3d.material.colorWrite = false;
-    polygonMesh.object3d.material.depthWrite = true;
-    quake.threeLayer._renderer.scene2.add(polygonMesh.object3d);
+    polygonMesh.object3d.material.depthWrite = false;
+    polygonMesh.object3d.material.depthTest = true;
+    polygonMesh.object3d.renderOrder = -22;
+ 
+
+    quake.threeLayer.addMesh(polygonMesh);
 }
  
 async function getContents(g) {
