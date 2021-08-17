@@ -70,6 +70,7 @@ quake.setThreeLayer = function () {
     quake.markerLayer.addTo(quake.map);
 
     quake.threeLayer.prepareToDraw = function (gl, scene, camera) {
+        //gl.sortObjects = false;
         var light = new THREE.DirectionalLight(0xffffff);
         light.position.set(0, -10, 10).normalize();
         scene.add(light);
@@ -267,6 +268,7 @@ var lineMaterial = new THREE.LineMaterial({
     // dashed: false,
     wireframe: false,
     depthTest: true,
+    depthWrite: false,
     blending: THREE.NormalBlending ,
 });
 
@@ -1011,7 +1013,7 @@ function turfToGeojson(turfPolygon){
 }
 
 async function geojsonToTurf(geojsonPolygon){
-    let res = await fetch('/test/area.geojson');
+    let res = await fetch('/test/area2.geojson');
     let geojson = await res.json();
     return geojson[0].geometry.coordinates;
 }
@@ -1037,7 +1039,7 @@ async function testAlphaMap(){
     var polygonMesh = quake.threeLayer.toFlatPolygons(lolypoly, {altitude:0, topColor: '#fff', interactive: false, }, polygonMaterial);
     polygonMesh.object3d.customId = '111_polygon';
     polygonMesh.object3d.position.z = 2;
-    polygonMesh.object3d.material.colorWrite = false;
+    polygonMesh.object3d.material.colorWrite = true;
     polygonMesh.object3d.material.depthWrite = true;
     quake.threeLayer._renderer.scene2.add(polygonMesh.object3d);
 }
