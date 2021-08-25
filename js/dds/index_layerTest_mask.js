@@ -3,7 +3,6 @@ var quake = {
     threeLayer: {},
     is3D: false,
     prevCameraInfo: {},
-    markerLayer: {},
 };
 var stats = null;
 var infoWindow;
@@ -52,22 +51,9 @@ quake.setBaseLayer = function () {
 quake.setThreeLayer = function () {
     quake.threeLayer = new maptalks.ThreeLayer('threelayer', {
         forceRenderOnZooming: false,
-        forceRenderOnMoving: false,
+        forceRenderOnMoving: true,
         forceRenderOnRotating: false
     });
-
-    quake.markerLayer = new maptalks.ThreeLayer('markerLayer', {
-        forceRenderOnZooming: false,
-        forceRenderOnMoving: false,
-        forceRenderOnRotating: false
-    });
-    quake.markerLayer.prepareToDraw = function (gl, scene, camera) { 
-
-        var light = new THREE.DirectionalLight(0xffffff);
-        light.position.set(0, -10, 10).normalize();
-        scene.add(light);
-    }
-    quake.markerLayer.addTo(quake.map);
 
     quake.threeLayer.prepareToDraw = function (gl, scene, camera) {
         //gl.sortObjects = false;
@@ -76,22 +62,54 @@ quake.setThreeLayer = function () {
         scene.add(light);
 
         quake.threeLayer._renderer.scene2 = new THREE.Scene();
-        quake.threeLayer._renderer.scene2.add(light);
+        let scene2 = quake.threeLayer._renderer.scene2;
+
+        quake.threeLayer._renderer.scene3 = new THREE.Scene();
+        let scene3 = quake.threeLayer._renderer.scene3;
+        quake.threeLayer._renderer.scene3.add(light);
 
         quake.prevCameraInfo = {far:camera.far, near:camera.near, fov:camera.fov, position:camera.position};
         stats = new Stats();
         stats.domElement.style.zIndex = 100;
         document.getElementById('map').appendChild(stats.domElement);
 
+        const parameters = {
+            minFilter: THREE.LinearFilter,
+            magFilter: THREE.LinearFilter,
+            format: THREE.RGBAFormat,
+            stencilBuffer: true
+        };
+
+        const renderTarget = new THREE.WebGLRenderTarget( window.innerWidth, window.innerHeight, parameters );
+
+        composer = new THREE.EffectComposer( gl, renderTarget);
+
+        const clearPass = new THREE.ClearPass();
+        composer.addPass( clearPass );
+
+  
+
+        const maskPass1 = new THREE.MaskPass(scene2, camera );
+        maskPass1.inverse = false;
+        composer.addPass( maskPass1 );
+
+        const renderPass = new THREE.RenderPass(scene, camera );
+        renderPass.clear = false;
+        composer.addPass( renderPass );
+
+
+        const clearMaskPass = new THREE.ClearMaskPass();
+        composer.addPass( clearMaskPass );
+
+        const renderPass2 = new THREE.RenderPass(scene3, camera );
+        renderPass2.clear = false;
+        composer.addPass( renderPass2 );
+
         
-
-        composer = new THREE.EffectComposer( gl );
-
-        const renderPass = new THREE.RenderPass( scene, camera );
-        composer.addPass( renderPass ); 
 
         effectFXAA = new THREE.ShaderPass( THREE.FXAAShader );
         effectFXAA.uniforms[ 'resolution' ].value.set( 1 / window.innerWidth, 1 / window.innerHeight );
+        effectFXAA.renderToScreen = true;
         composer.addPass( effectFXAA );
 
         window.addEventListener( 'resize', function(){
@@ -105,7 +123,8 @@ quake.setThreeLayer = function () {
             effectFXAA.uniforms[ 'resolution' ].value.set( 1 / window.innerWidth, 1 / window.innerHeight );
         } );
 
-
+        quake.threeLayer._renderer.composer = composer;
+        composer.needsUpdate = true;
         
         animation();
     }
@@ -121,79 +140,8 @@ quake.setThreeLayer = function () {
 
 let composer,  effectFXAA;
 
-quake.markerLayerToThreeLayer = function(){
-    let markerChild = quake.markerLayer._renderer.scene.children;
-
-    let selectPointIdx = 0;
-    for(var i=0; i<markerChild.length; i++){
-        let c = markerChild[selectPointIdx];
-        if(c.customId){
-            if(c.customId.split('_')[1] == 'point'){
-                quake.threeLayer.addMesh(c);
-            }else{
-                selectPointIdx++;
-            }
-        }else{
-            selectPointIdx++;
-        }
-    }
-
-    let existPointCnt = 0;
-    for(var i=0; i<markerChild.length; i++){
-        let c = markerChild[i];
-        if(c.customId){
-            if(c.customId.split('_')[1] == 'point'){
-                existPointCnt++;
-            }
-        }
-    }
-
-    if(existPointCnt > 0){
-        quake.markerLayerToThreeLayer();
-    }else{
-        quake.markerLayer.clear();
-    }
-}
-
-quake.threeLayerToMarkerLayer = function(){
-    let threeChild = quake.threeLayer._renderer.scene.children;
-
-    let selectPointIdx = 0;
-    for(var i=0; i<threeChild.length; i++){
-        let c = threeChild[selectPointIdx];
-        if(c.customId){
-            if(c.customId.split('_')[1] == 'point'){
-                quake.threeLayer.addMesh(c);
-
-                quake.markerLayer.addMesh(c);
-                quake.threeLayer.removeMesh(c);
-               
-                c.geometry.dispose();
-            }else{
-                selectPointIdx++;
-            }
-        }else{
-            selectPointIdx++;
-        }
-    }
-
-    let existPointCnt = 0;
-    for(var i=0; i<threeChild.length; i++){
-        let c = threeChild[i];
-        if(c.customId){
-            if(c.customId.split('_')[1] == 'point'){
-                existPointCnt++;
-            }
-        }
-    }
-
-    if(existPointCnt > 0){
-        quake.threeLayerToMarkerLayer();
-    }
-}
-
 quake.sortLayers = function () {
-    quake.map.sortLayers([quake.threeLayer, quake.markerLayer]);
+    quake.map.sortLayers([quake.threeLayer]);
 }
 
 var startTime = Date.now();
@@ -207,12 +155,6 @@ function animation() {
     // if (quake.threeLayer._needsUpdate) {
     //     quake.threeLayer.renderScene();
     // }
-
-    quake.markerLayer._needsUpdate = !quake.markerLayer._needsUpdate;
-    if (quake.markerLayer._needsUpdate) {
-        quake.markerLayer.renderScene();
-    }
-
 
      
         //console.log('maptalks', quake.map.cameraFar, quake.map.cameraNear, quake.map._fov);
@@ -231,30 +173,29 @@ function animation() {
         stats.update();
     }
 
-    if(composer){
-        //composer.render();
-    }
+   
 
     //polygoneCirclePatternMaterial.uniforms.u_time.value = timeDelta;
 
-    let _this = quake.threeLayer._renderer;
+    //let _this = quake.threeLayer._renderer; 
 
-    var time = maptalks.Util.now();
-    // Make sure to execute only once in a frame
-    // if (time - _this._renderTime >= 16) {
-    //     _this.layer._callbackBaseObjectAnimation();
-    //     _this._renderTime = time;
-    // }
-    // _this._syncCamera();
+    // _this.context.clearColor();
 
-    _this.context.clearColor();
-
-    _this.context.render(_this.scene2, _this.camera);
+    //_this.context.render(_this.scene2, _this.camera);
 
 
-    _this.context.render(_this.scene, _this.camera);
-    _this.completeRender();
- 
+    // _this.context.render(_this.scene, _this.camera);
+    // _this.completeRender();
+   
+
+    if(composer){
+        composer.needsUpdate = !composer.needsUpdate;
+        if(composer.needsUpdate){
+            composer.render();
+        }
+        //console.log(animCnt)
+    }
+
     requestAnimationFrame(animation);
 } 
 
@@ -268,7 +209,7 @@ var lineMaterial = new THREE.LineMaterial({
     // dashed: false,
     wireframe: false,
     depthTest: true,
-    depthWrite: false,
+    depthWrite: true,
     blending: THREE.NormalBlending ,
 });
 
@@ -331,7 +272,7 @@ function loadLine(e) {
                 // lineMaterial.polygonOffsetFactor = -1;
 
                 lineMesh.object3d.customId = seq + '_line';
-                    
+                lineMesh.object3d.renderOrder = 1;
                 quake.threeLayer.addMesh(lineMesh);
  
 
@@ -984,14 +925,13 @@ function loadPoint(e) {
                     points.push(point);
                 }
                 
+                points.forEach(point => {
+                    quake.threeLayer._renderer.scene3.add(point.object3d);
+                });
 
-                if(quake.is3D){
-                    quake.threeLayer.addMesh(points);
-                    quake.convert3DWorker('point', points.map(p=>p.object3d));
-                    //quake.convert3DWorker('polygonLine', linePavement);
-                }else{
-                    quake.markerLayer.addMesh(points);
-                }
+                //quake.threeLayer.addMesh(points);
+                quake.convert3DWorker('point', points.map(p=>p.object3d));
+                   
                  
             });
         }
@@ -1013,7 +953,7 @@ function turfToGeojson(turfPolygon){
 }
 
 async function geojsonToTurf(geojsonPolygon){
-    let res = await fetch('/test/area2.geojson');
+    let res = await fetch('/test/area.geojson');
     let geojson = await res.json();
     return geojson[0].geometry.coordinates;
 }
@@ -1021,16 +961,16 @@ async function geojsonToTurf(geojsonPolygon){
 async function testAlphaMap(){
     let poly = await geojsonToTurf();
     
-    var coordMin = new maptalks.Coordinate(128.755734, 34.978977);//부산
-    var coordMax = new maptalks.Coordinate(129.314373, 35.396265);//부산
+    // var coordMin = new maptalks.Coordinate(128.755734, 34.978977);//부산
+    // var coordMax = new maptalks.Coordinate(129.314373, 35.396265);//부산
 
     var polygon = turf.multiPolygon(poly);
-    var mask = turf.polygon([[[128.755734, 34.978977], [129.314373, 34.978977], [129.314373, 35.396265], [128.755734, 35.396265], [128.755734, 34.978977]]]);
+    // var mask = turf.polygon([[[128.755734, 34.978977], [129.314373, 34.978977], [129.314373, 35.396265], [128.755734, 35.396265], [128.755734, 34.978977]]]);
 
-    var masked = turf.mask(polygon, mask);
+    // var masked = turf.mask(polygon, mask);
 
 
-    const lolypoly = maptalks.GeoJSON.toGeometry(masked);  
+    const lolypoly = maptalks.GeoJSON.toGeometry(polygon);  
  
     let color = new THREE.Color('#ff0000');
 
@@ -1038,9 +978,10 @@ async function testAlphaMap(){
     let polygonMaterial = new THREE.MeshPhongMaterial( {color:color, transparent:true});
     var polygonMesh = quake.threeLayer.toFlatPolygons(lolypoly, {altitude:0, topColor: '#fff', interactive: false, }, polygonMaterial);
     polygonMesh.object3d.customId = '111_polygon';
-    polygonMesh.object3d.position.z = 2;
-    polygonMesh.object3d.material.colorWrite = true;
+    polygonMesh.object3d.position.z = 0;
+    polygonMesh.object3d.material.colorWrite = false;
     polygonMesh.object3d.material.depthWrite = true;
+    polygonMesh.object3d.renderOrder = 1;
     quake.threeLayer._renderer.scene2.add(polygonMesh.object3d);
 }
  
@@ -1286,8 +1227,6 @@ quake.loadTerrain = async function (e) {
     quake.is3D = isCheck;
     if (quake.is3D) { //3d enable
 
-        quake.markerLayerToThreeLayer();
-
         if (terrainList.length > 0) { //지형 객체가 있을경우
             terrainList.forEach(t => { t.visible = true; });
         }else{
@@ -1337,8 +1276,6 @@ quake.loadTerrain = async function (e) {
         }
   
     } else { //3d disable
-
-        quake.threeLayerToMarkerLayer();
 
         quake.threeLayer._renderer.camera.far = quake.prevCameraInfo.far;
         quake.threeLayer._renderer.camera.near = quake.prevCameraInfo.near;
