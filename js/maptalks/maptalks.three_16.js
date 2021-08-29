@@ -8547,11 +8547,18 @@
             const time = maptalks.Util.now();
             // Make sure to execute only once in a frame
             if (time - this._renderTime >= 16) {
-                this.layer._callbackBaseObjectAnimation();
+                //this.layer._callbackBaseObjectAnimation();
                 this._renderTime = time;
             }
             this._syncCamera();
-            this.context.render(this.scene, this.camera);
+            if(this.composer){
+                //this.composer.needsUpdate = !this.composer.needsUpdate;
+                //if(this.composer.needsUpdate){
+                    this.composer.render();
+                //}
+            }else{
+                this.context.render(this.scene, this.camera);
+            }
             this.completeRender();
         }
         remove() {
