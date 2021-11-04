@@ -18,7 +18,11 @@ quake.viewMap = function () {
 
     quake.sortLayers();
 
+<<<<<<< HEAD
+    
+=======
 
+>>>>>>> 1b30900c318f87d0cfa25c39c7de04453da231a5
     initGui();
 }
 
@@ -61,18 +65,31 @@ quake.setThreeLayer = function () {
         light.position.set(0, -10, 10).normalize();
         scene.add(light);
 
+<<<<<<< HEAD
+    quake.threeLayer.prepareToDraw = function (gl, scene, camera) { 
+        quake.threeLayer._renderer.scene2 = new THREE.Scene();
+        
+=======
         quake.threeLayer._renderer.scene2 = new THREE.Scene();
         let scene2 = quake.threeLayer._renderer.scene2;
 
         quake.threeLayer._renderer.scene3 = new THREE.Scene();
         let scene3 = quake.threeLayer._renderer.scene3;
         quake.threeLayer._renderer.scene3.add(light);
+>>>>>>> 1b30900c318f87d0cfa25c39c7de04453da231a5
 
         quake.prevCameraInfo = {far:camera.far, near:camera.near, fov:camera.fov, position:camera.position};
         stats = new Stats();
         stats.domElement.style.zIndex = 100;
         document.getElementById('map').appendChild(stats.domElement);
 
+<<<<<<< HEAD
+        var light = new THREE.DirectionalLight(0xffffff);
+        light.position.set(0, -10, 10).normalize();
+        scene.add(light);
+        quake.threeLayer._renderer.scene2.add(light);
+        composer = new THREE.EffectComposer( gl );
+=======
         const parameters = {
             minFilter: THREE.LinearFilter,
             magFilter: THREE.LinearFilter,
@@ -83,6 +100,7 @@ quake.setThreeLayer = function () {
         const renderTarget = new THREE.WebGLRenderTarget( window.innerWidth, window.innerHeight, parameters );
 
         composer = new THREE.EffectComposer( gl, renderTarget);
+>>>>>>> 1b30900c318f87d0cfa25c39c7de04453da231a5
 
         const clearPass = new THREE.ClearPass();
         composer.addPass( clearPass );
@@ -123,10 +141,15 @@ quake.setThreeLayer = function () {
             effectFXAA.uniforms[ 'resolution' ].value.set( 1 / window.innerWidth, 1 / window.innerHeight );
         } );
 
+<<<<<<< HEAD
+        animation();
+
+=======
         quake.threeLayer._renderer.composer = composer;
         composer.needsUpdate = true;
         
         animation();
+>>>>>>> 1b30900c318f87d0cfa25c39c7de04453da231a5
     }
 
     quake.threeLayer.addTo(quake.map);
@@ -156,7 +179,17 @@ function animation() {
     //     quake.threeLayer.renderScene();
     // }
 
+<<<<<<< HEAD
+    // quake.markerLayer._needsUpdate = !quake.markerLayer._needsUpdate;
+    // if (quake.markerLayer._needsUpdate) {
+    //     quake.markerLayer.renderScene();
+    // }
+
+
+    //if(quake.threeLayer._renderer.camera && quake.is3D){
+=======
      
+>>>>>>> 1b30900c318f87d0cfa25c39c7de04453da231a5
         //console.log('maptalks', quake.map.cameraFar, quake.map.cameraNear, quake.map._fov);
 
         //console.log('three', quake.threeLayer._renderer.camera.far, quake.threeLayer._renderer.camera.near, quake.threeLayer._renderer.camera.fov);
@@ -168,7 +201,12 @@ function animation() {
     quake.threeLayer._renderer.camera.position.y = quake.map.cameraPosition[1];
     quake.threeLayer._renderer.camera.position.z = quake.map.cameraPosition[2];
  
+<<<<<<< HEAD
+   // }
+
+=======
     
+>>>>>>> 1b30900c318f87d0cfa25c39c7de04453da231a5
     if (stats) {
         stats.update();
     }
@@ -176,6 +214,45 @@ function animation() {
    
 
     //polygoneCirclePatternMaterial.uniforms.u_time.value = timeDelta;
+    let _this = quake.threeLayer;
+    let __this = quake.threeLayer._renderer;
+    const renderer = _this._getRenderer();
+    if (renderer) {
+        //renderer.clearCanvas();
+
+        const time = maptalks.Util.now();
+        // Make sure to execute only once in a frame
+        if (time - __this._renderTime >= 16) {
+            __this.layer._callbackBaseObjectAnimation();
+            __this._renderTime = time;
+        }
+        __this._syncCamera();
+
+        renderer.clear();
+        //renderer.context.clearColor();
+        __this.context.render(__this.scene2, __this.camera);
+        
+        __this.context.render(__this.scene, __this.camera);
+
+
+    
+
+        __this.completeRender();
+
+    } 
+    
+   // let renderer = quake.threeLayer._renderer;
+    //quake.threeLayer.renderScene2();
+    // Manually clear the renderer
+    //renderer.clear();
+
+    // Sets which color components to enable or to disable when drawing or rendering to a WebGLFramebuffer
+    //renderer.context.colorMask(false, false, false, false); // R, G, B, A
+    //renderer.render(scene1, camera);
+
+    // Enable back the writing into the color and alpha component
+    //renderer.context.colorMask(true, true, true, true);
+    //renderer.render(scene2, camera);
 
     //let _this = quake.threeLayer._renderer; 
 
@@ -209,7 +286,10 @@ var lineMaterial = new THREE.LineMaterial({
     // dashed: false,
     wireframe: false,
     depthTest: true,
+<<<<<<< HEAD
+=======
     depthWrite: true,
+>>>>>>> 1b30900c318f87d0cfa25c39c7de04453da231a5
     blending: THREE.NormalBlending ,
 });
 
@@ -362,7 +442,7 @@ async function loadPolygon(e) {
                     polygonOffset: true,
                     polygonOffsetFactor: zoffSetGenerator.getPolygonOffsetFactor(),
                     polygonOffsetUnits: zoffSetGenerator.getPolygonOffsetUnits(),
-                    depthTest: false,
+                    depthTest: true,
                     blending:  THREE.NormalBlending  ,
                     opacity: 0.8,
                 });
@@ -461,7 +541,7 @@ async function loadPolygonP1(e) {
                     polygonOffset: true,
                     polygonOffsetFactor: zoffSetGenerator.getPolygonOffsetFactor(),
                     polygonOffsetUnits: zoffSetGenerator.getPolygonOffsetUnits(),
-                    depthTest: false,
+                    depthTest: true,
                     blending: THREE.NormalBlending,
                     opacity: 0.8,
                 });
@@ -563,7 +643,7 @@ async function loadPolygonP2(e) {
                     polygonOffset: true,
                     polygonOffsetFactor: zoffSetGenerator.getPolygonOffsetFactor(),
                     polygonOffsetUnits: zoffSetGenerator.getPolygonOffsetUnits(),
-                    depthTest: false,
+                    depthTest: true,
                     blending: THREE.NormalBlending,
                     opacity:0.8,
                 });
@@ -666,7 +746,7 @@ async function loadPolygonP3(e) {
                     polygonOffset: true,
                     polygonOffsetFactor: zoffSetGenerator.getPolygonOffsetFactor(),
                     polygonOffsetUnits: zoffSetGenerator.getPolygonOffsetUnits(),
-                    depthTest: false,
+                    depthTest: true,
                     blending: THREE.NormalBlending,
                     opacity:0.8,
                 });
@@ -823,7 +903,7 @@ function createMateria(fillStyle) {
         size: 25,
         //transparent: true, //使材质透明
         //blending: THREE.AdditiveBlending,
-        depthTest: false, //深度测试关闭，不消去场景的不可见面
+        depthTest: true, //深度测试关闭，不消去场景的不可见面
         //depthWrite: false,
         map: new THREE.TextureLoader().load('/test/selectFnIcon' + (idx + 1) + '.png'),
         //刚刚创建的粒子贴图就在这里用上
@@ -972,7 +1052,14 @@ async function testAlphaMap(){
 
     const lolypoly = maptalks.GeoJSON.toGeometry(polygon);  
  
-    let color = new THREE.Color('#ff0000');
+    // let color = new THREE.Color('#ff0000');
+    // let polygonMaterial = new THREE.MeshPhongMaterial( {color:color, transparent:true});
+    // polygonMaterial.colorWrite = false;
+    // polygonMaterial.depthWrite = true;
+    // var polygonMesh = quake.threeLayer.toFlatPolygons(lolypoly, {altitude:0, topColor: '#fff', interactive: false, }, polygonMaterial);
+    // polygonMesh.object3d.customId = '111_polygon';
+    // polygonMesh.object3d.position.z = 1;
+    // quake.threeLayer._renderer.scene2.add(polygonMesh.object3d);
 
 
     let polygonMaterial = new THREE.MeshPhongMaterial( {color:color, transparent:true});
