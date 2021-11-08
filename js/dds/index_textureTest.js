@@ -85,7 +85,7 @@ function initView(){
 	console.log(degrees2meters(129.152077, 35.153772));
 	console.log(degrees2Tiles(129.152077, 35.153772, 16));
 
-  //loadTerrain();
+  loadTerrain();
 }
 
 var degrees2meters = function(lon,lat) {

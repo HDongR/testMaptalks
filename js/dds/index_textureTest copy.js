@@ -40,7 +40,8 @@ quake.setBaseLayer = function() {
         projection:'EPSG:3857'
           // other properties necessary for spatial reference
       },
-      'urlTemplate' : setillayerUrl
+      'urlTemplate' : setillayerUrl,
+      debug: true,
   });
 
   quake.map = new maptalks.Map("map", {
