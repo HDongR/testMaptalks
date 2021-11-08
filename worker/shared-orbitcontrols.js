@@ -2,6 +2,7 @@ import * as THREE from 'https://threejsfundamentals.org/threejs/resources/threej
 import {OrbitControls} from 'https://threejsfundamentals.org/threejs/resources/threejs/r132/examples/jsm/controls/OrbitControls.js';
 
 let globalScene;
+let globalCamera;
 
 export function addScene(obj){
   globalScene.add(obj);  
@@ -11,19 +12,53 @@ export function init(data) {   /* eslint-disable-line no-unused-vars */
   const {canvas, inputElement} = data;
   const renderer = new THREE.WebGLRenderer({canvas});
 
+  const scene = new THREE.Scene();
+
+  const mesh = new THREE.Mesh( new THREE.PlaneGeometry( 2000, 2000 ), new THREE.MeshPhongMaterial( { color: 0x999999, depthWrite: false } ) );
+  mesh.rotation.x = - Math.PI / 2;
+  scene.add( mesh );
+
+  const grid = new THREE.GridHelper( 200, 40, 0x000000, 0x000000 );
+  grid.material.opacity = 0.2;
+  grid.material.transparent = true;
+  scene.add( grid );
+
+
+
   const fov = 75;
   const aspect = 2; // the canvas default
   const near = 0.1;
-  const far = 100;
+  const far = 5000;
   const camera = new THREE.PerspectiveCamera(fov, aspect, near, far);
+  const helper = new THREE.CameraHelper( camera );
+  
   camera.position.z = 4;
+  globalCamera = camera;
+
+  scene.background = new THREE.Color( 0xcccccc );
+  scene.fog = new THREE.FogExp2( 0xcccccc, 0.002 );
 
   const controls = new OrbitControls(camera, inputElement);
   controls.target.set(0, 0, 0);
   controls.update();
+  controls.mouseButtons = {
+    LEFT: THREE.MOUSE.PAN,
+    MIDDLE: THREE.MOUSE.DOLLY,
+    RIGHT: THREE.MOUSE.ROTATE
+  }
 
-  const scene = new THREE.Scene();
+  controls.enableDamping = false; // an animation loop is required when either damping or auto-rotation are enabled
+  controls.dampingFactor = 0.05;
+
+  controls.screenSpacePanning = false;
+
+  // controls.minDistance = 100;
+  // controls.maxDistance = 500;
+
+  controls.maxPolarAngle = Math.PI / 3;
+  
   globalScene = scene;
+  scene.add( helper );
 
   {
     const color = 0xFFFFFF;
@@ -115,7 +150,7 @@ export function init(data) {   /* eslint-disable-line no-unused-vars */
       cube.rotation.y = rot;
     });
 
-    pickHelper.pick(pickPosition, scene, camera, time);
+    //pickHelper.pick(pickPosition, scene, camera, time);
 
     renderer.render(scene, camera);
 
@@ -132,10 +167,33 @@ export function init(data) {   /* eslint-disable-line no-unused-vars */
     };
   }
 
+  const _euler = new THREE.Euler( 0, 0, 0, 'YXZ' );
+  const _vector = new THREE.Vector3();
+
+  const _changeEvent = { type: 'change' };
+  const _lockEvent = { type: 'lock' };
+  const _unlockEvent = { type: 'unlock' };
+
+  const _PI_2 = Math.PI / 2;
+  let minPolarAngle = 0; // radians
+  let maxPolarAngle = Math.PI; // radians
+
   function setPickPosition(event) {
     const pos = getCanvasRelativePosition(event);
     pickPosition.x = (pos.x / inputElement.clientWidth ) *  2 - 1;
     pickPosition.y = (pos.y / inputElement.clientHeight) * -2 + 1;  // note we flip Y
+
+
+    // const movementX = event.movementX || event.mozMovementX || event.webkitMovementX || 0;
+    // const movementY = event.movementY || event.mozMovementY || event.webkitMovementY || 0;
+
+    // _euler.setFromQuaternion( globalCamera.quaternion );
+
+    // _euler.y -= movementX * 0.002;
+    // _euler.x -= movementY * 0.002;
+
+    // _euler.x = Math.max( _PI_2 - maxPolarAngle, Math.min( _PI_2 - minPolarAngle, _euler.x ) );
+    // globalCamera.quaternion.setFromEuler( _euler );
   }
 
   function clearPickPosition() {
