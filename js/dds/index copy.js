@@ -262,6 +262,7 @@ quake.setBaseLayer = function() {
   
 }
 
+THREE.Loader.Handlers.add( /\.dds$/i, new THREE.DDSLoader() );
 var mtlLoaded = false;
 
 //three layer 생성
@@ -591,9 +592,6 @@ function getTiles(z, parentLayer){
 function isNil(obj) {
   return obj == null;
 }
-
-var loader = new THREE.ImageBitmapLoader();
-
 function update() {
   // console.log(quake.map.getZoom());
 
@@ -690,90 +688,58 @@ function update() {
         }
        
         cacheTerrian[key] = {id:key, level:level, isData:false, isFetch:true, isJpeg:false, demUrl:address, terrian:null};
-
-
         fetch(address).then(r=>{
           const size = r.headers.get("content-length");
-          if(Number(size) >= 16900){
+          if(size >= 16900){
             r.arrayBuffer().then(function(buffer) {
               //var byteArray = new Uint8Array(buffer);
-              let p = new Parser(buffer);
-    
+              p = new Parser(buffer);
+
               let x = unit * (IDX - (Math.pow(2, level-1)*10));
               let y = unit * (IDY - (Math.pow(2, level-2)*10));
               let pdata = [];
-              let sData = null;
-              let eData = null;
-              for(var yy=64; yy>=0; yy--){ 
+              for(var yy=64; yy>=0; yy--){
                 for(var xx=0; xx<65; xx++){
                   let xDegree = x+(unit/64)*xx;
                   let yDegree = y+(unit/64)*yy;
                   let height = p.getFloat4();
+
                   pdata.push([xDegree, yDegree, height]);
-                  
-                  if(yy == 0 && xx == 64){
-                    eData = [xDegree, yDegree];
-                  }else if(yy == 64 && xx == 0){
-                    sData = [xDegree, yDegree];
-                  }
+                  //console.log(xDegree, yDegree, height);
                 }
               }
-              var geometry = new THREE.PlaneGeometry(1, 1, 64, 64);
-              
-              for (var i = 0, l = geometry.attributes.position.count; i < l; i++) {
-                  const z = pdata[i][2]/80;//.threeLayer.distanceToVector3(pdata[i][2], pdata[i][2]).x;
-                  const v = quake.threeLayer.coordinateToVector3([pdata[i][0],pdata[i][1]], z);
-                  geometry.attributes.position.setXYZ(i, v.x, v.y, v.z);
-              }
-            
-              var material = new THREE.MeshBasicMaterial({/*color: 'hsl(0,100%,50%)',*/});
-              material.opacity = 1;
-              material.wireframe = false;
-              var address = "https://xdworld.vworld.kr/XDServer/requestLayerNode?APIKey=3529523D-2DBA-36B8-98F5-357E880AC0EE&Layer=" + "tile" + "&Level=" + level + "&IDX=" + IDX + "&IDY=" + IDY;
-              
-              loader.setOptions( { imageOrientation: 'flipY' } );
-              loader.load( address, function ( imageBitmap ) {
-                var tx = new THREE.CanvasTexture( imageBitmap );
-                material.map = tx;
-                material.side = THREE.DoubleSide;
-                material.visible = true;
-                material.needsUpdate = true;
-              });
-              
-            
-              
-              var plane = new THREE.Mesh(geometry, material);
-              material.visible = false;
+              //console.log(r);
+              var material = new THREE.MeshBasicMaterial({side:THREE.BackSide});
+                  //var material = new THREE.MeshBasicMaterial({color: 'hsl(0,100%,50%)',side:THREE.BackSide});
+                  //material.opacity = 0.9;
+                  //material.wireframe = true;
+              const terrain = new Terrain({layer,level,IDX,IDY}, pdata, {interactive: false}, material, quake.threeLayer);
+              //terrains.push({terrain, key});
+              quake.threeLayer.addMesh(terrain);
 
-              quake.threeLayer.addMesh(plane);
-
-              cacheTerrian[key].terrian = plane;
+              cacheTerrian[key].terrian = terrain;
               cacheTerrian[key].isData = true;
-               
- 
-            });//arraybuffer
-          }//16900
-        }); //fetch
 
-
-         
+            });
+          }
+        });
         
       }
     }
 
-    // for(var k in cacheTerrian){
-    //   let cs = cacheTerrian[k];
-    //   let ct = cs.terrian;
-    //   let level = cs.level;
-    //   if(!ct){
-    //     continue;
-    //   }
-    //   if(showKeyList[k]){
-    //     ct.visible = true;
-    //   }else{
-    //     ct.visible = false;
-    //   }
-    // }
+    for(var k in cacheTerrian){
+      let cs = cacheTerrian[k];
+      let ct = cs.terrian;
+      let level = cs.level;
+      if(!ct){
+        continue;
+      }
+      if(showKeyList[k]){
+        ct.show();
+      }else{
+        ct.hide();
+      }
+    }
     
     fetchCnt++;
   }

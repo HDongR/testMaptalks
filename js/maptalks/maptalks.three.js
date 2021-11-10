@@ -8370,10 +8370,10 @@
             camera.projectionMatrix.elements = map.projMatrix;
             //https://github.com/mrdoob/three.js/commit/d52afdd2ceafd690ac9e20917d0c968ff2fa7661
             if (this.matrix4.invert) {
-                camera.projectionMatrixInverse.elements = this.matrix4.copy(camera.projectionMatrix).invert().elements;
+                //camera.projectionMatrixInverse.elements = this.matrix4.copy(camera.projectionMatrix).invert().elements;
             }
             else {
-                camera.projectionMatrixInverse.elements = this.matrix4.getInverse(camera.projectionMatrix).elements;
+                //camera.projectionMatrixInverse.elements = this.matrix4.getInverse(camera.projectionMatrix).elements;
             }
         };
         ThreeRenderer.prototype._createGLContext = function (canvas, options) {
