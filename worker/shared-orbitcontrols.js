@@ -166,34 +166,13 @@ export function init(data) {   /* eslint-disable-line no-unused-vars */
       y: event.clientY - rect.top,
     };
   }
-
-  const _euler = new THREE.Euler( 0, 0, 0, 'YXZ' );
-  const _vector = new THREE.Vector3();
-
-  const _changeEvent = { type: 'change' };
-  const _lockEvent = { type: 'lock' };
-  const _unlockEvent = { type: 'unlock' };
-
-  const _PI_2 = Math.PI / 2;
-  let minPolarAngle = 0; // radians
-  let maxPolarAngle = Math.PI; // radians
-
+  
   function setPickPosition(event) {
     const pos = getCanvasRelativePosition(event);
     pickPosition.x = (pos.x / inputElement.clientWidth ) *  2 - 1;
     pickPosition.y = (pos.y / inputElement.clientHeight) * -2 + 1;  // note we flip Y
-
-
-    // const movementX = event.movementX || event.mozMovementX || event.webkitMovementX || 0;
-    // const movementY = event.movementY || event.mozMovementY || event.webkitMovementY || 0;
-
-    // _euler.setFromQuaternion( globalCamera.quaternion );
-
-    // _euler.y -= movementX * 0.002;
-    // _euler.x -= movementY * 0.002;
-
-    // _euler.x = Math.max( _PI_2 - maxPolarAngle, Math.min( _PI_2 - minPolarAngle, _euler.x ) );
-    // globalCamera.quaternion.setFromEuler( _euler );
+    
+    
   }
 
   function clearPickPosition() {

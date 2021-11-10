@@ -92,7 +92,7 @@ var loadTerrain = async function () {
               material.wireframe = false;
               var address = "https://xdworld.vworld.kr/XDServer/requestLayerNode?APIKey=3529523D-2DBA-36B8-98F5-357E880AC0EE&Layer=" + "tile" + "&Level=" + level + "&IDX=" + IDX + "&IDY=" + IDY;
               
-              //loader.setOptions( { imageOrientation: 'flipY' } );
+              loader.setOptions( { imageOrientation: 'flipY' } );
               loader.load( address, function ( imageBitmap ) {
                 var tx = new THREE.CanvasTexture( imageBitmap );
                 material.map = tx;
