@@ -17,8 +17,8 @@ quake.viewMap = function () {
 quake.setBaseLayer = function () {
   //basemap : vworld
   // var url = 'http://api.vworld.kr/req/wmts/1.0.0/' + properties.baseMapAPIKey + '/Base/{z}/{y}/{x}.png'
-
-  var setillayerUrl = 'http://api.vworld.kr/req/wmts/1.0.0/' + 'D6200AF4-16B4-3161-BE8E-1CCDD332A8E3' + '/Satellite/{z}/{y}/{x}.jpeg';
+  var setillayerUrl = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+  //var setillayerUrl = 'http://api.vworld.kr/req/wmts/1.0.0/' + 'D6200AF4-16B4-3161-BE8E-1CCDD332A8E3' + '/Satellite/{z}/{y}/{x}.jpeg';
   var setilLayer = new maptalks.TileLayer('tile2', {
     spatialReference: {
       projection: 'EPSG:3857'
@@ -52,7 +52,7 @@ quake.setBaseLayer = function () {
     center: [129.15158, 35.15361],
     zoom: 11,
     maxZoom: 19,
-    minZoom: 9,
+    minZoom: 0,
     centerCross: true,
     spatialReference: {
       projection: 'EPSG:3857'//map control 좌표계
@@ -90,10 +90,23 @@ quake.setThreeLayer = function () {
   }
 
   quake.threeLayer.addTo(quake.map);
+}
+ 
+
+function splitTree(tree, level){
+  if(level >1){
+    return;
+  }
+
+  tree.split();
+  for(var i=0; i<tree.nodes.length; i++){
+    let node = tree.nodes[i];
+    splitTree(node, level + 1);
+  }
 
 }
 
-function fetch_terrain(key, unit, address, level, IDX, IDY){
+function fetch_terrain(key, unit, address, level, IDX, IDY, isShow){
   try{
     
     fetch(address).then(r => {
@@ -144,9 +157,11 @@ function fetch_terrain(key, unit, address, level, IDX, IDY){
           loader.load(address, function (imageBitmap) {
             var tx = new THREE.CanvasTexture(imageBitmap);
             material.map = tx;
-            //material.side = THREE.S;
-            material.visible = true;
+            //material.side = THREE.DoubleSide;
+            material.visible = isShow ? true : false;
             material.needsUpdate = true;
+
+            //이전 줌레벨 켜고 끄는 로직;
           });
           
 
@@ -170,6 +185,7 @@ function fetch_terrain(key, unit, address, level, IDX, IDY){
 
 }
 
+
 var loader = new THREE.ImageBitmapLoader();
 let cacheTerrian = {};
 function update() {
@@ -188,6 +204,7 @@ function update() {
 
 
   let showKeyList = {};
+  let preIdMap = {'_4':{}, '_3':{}, '_2':{}, '_1':{}};
 
   for (var kk = 0; kk < tileGrids.length; kk++) {
     tileGrid = tileGrids[kk];
@@ -217,7 +234,7 @@ function update() {
     //resolution = quake.map.getResolution(tileGrid.zoom); //modify
 
     let level = tileGrid.zoom - 4;
-    //let level = tileGrid.tileZoom - 4; //modify
+    //let level = tileGrid.zoom - 3;
 
     var xmin = tileGrid.extent.xmin * resolution;
     var ymin = tileGrid.extent.ymin * resolution;
@@ -249,6 +266,7 @@ function update() {
     //console.log(minIdx, minIdy, maxIdx, maxIdy);
     //console.log(tileGrid.zoom, coordMin, coordMax);
 
+    if((maxIdx - minIdx + 1) * (maxIdy - minIdy + 1) < 0 ) return;
     var idxIdyList = Array.from(Array((maxIdx - minIdx + 1) * (maxIdy - minIdy + 1)), () => new Array(2));
     var index = 0;
     for (var i = minIdx; i <= maxIdx; i++) {
@@ -259,17 +277,24 @@ function update() {
       }
     }
 
+    
+
     for (var i = 0; i < idxIdyList.length; i++) {
       const IDX = idxIdyList[i][0];
       const IDY = idxIdyList[i][1];
       const layer = "dem";
       let address = "http://xdworld.vworld.kr:8080/XDServer/requestLayerNode?APIKey=3529523D-2DBA-36B8-98F5-357E880AC0EE&Layer=" + layer + "&Level=" + level + "&IDX=" + IDX + "&IDY=" + IDY;
   
-      //for(var j=level-1; j>=5; j--){
+      let preKey4 = layer + "-" + (level-4) + "-" + Math.floor(IDX / 16) + "-" + Math.floor(IDY / 16);
+      let preKey3 = layer + "-" + (level-3) + "-" + Math.floor(IDX / 8) + "-" + Math.floor(IDY / 8);
+      let preKey2 = layer + "-" + (level-2) + "-" + Math.floor(IDX / 4) + "-" + Math.floor(IDY / 4);
+      let preKey1 = layer + "-" + (level-1) + "-" + Math.floor(IDX / 2) + "-" + Math.floor(IDY / 2);
 
-
-        //console.log(j);
-      //}
+      preIdMap['_4'][preKey4] = null;
+      preIdMap['_3'][preKey3] = null;
+      preIdMap['_2'][preKey2] = null;
+      preIdMap['_1'][preKey1] = null;
+       
 
       const key = layer + "-" + level + "-" + IDX + "-" + IDY;
       showKeyList[key] = key;
@@ -285,12 +310,36 @@ function update() {
 
       cacheTerrian[key] = { id: key, level: level, isData: false, isFetch: true, isJpeg: false, demUrl: address, terrian: null };
 
-      fetch_terrain(key, unit, address, level, IDX, IDY);
+      fetch_terrain(key, unit, address, level, IDX, IDY, true);
 
 
     }
   }
-  
+  let preMapResultKeys = {};
+  for(k in preIdMap){
+    for(k2 in preIdMap[k]){
+      preMapResultKeys[k2] = null;
+    }
+  }
+
+  // console.log(preIdMap);
+  // console.log(preMapResultKeys, Object.keys(preMapResultKeys).length);
+  for (key in preMapResultKeys){
+    const cache = cacheTerrian[key];
+    if (!cache) {
+      let keySplit = key.split('-');
+      let level = keySplit[1];
+      let IDX = keySplit[2];
+      let IDY = keySplit[3];
+      let address = "http://xdworld.vworld.kr:8080/XDServer/requestLayerNode?APIKey=3529523D-2DBA-36B8-98F5-357E880AC0EE&Layer=dem&Level=" + level + "&IDX=" + IDX + "&IDY=" + IDY;
+
+      cacheTerrian[key] = { id: key, level: level, isData: false, isFetch: true, isJpeg: false, demUrl: address, terrian: null };
+      let unit = 360 / (Math.pow(2, level) * 10);
+      fetch_terrain(key, unit, address, level, IDX, IDY, false);
+    }
+    
+  }
+
   for(var k in cacheTerrian){
     let cs = cacheTerrian[k];
     let ct = cs.terrian;
@@ -299,9 +348,9 @@ function update() {
       continue;
     }
     if(showKeyList[k]){
-      ct.visible = true;
+      //ct.visible = true;
     }else{
-      ct.visible = false;
+      //ct.visible = false;
       // quake.threeLayer.removeMesh(ct);
       // ct.geometry.dispose();
       // for (const key in ct) {
