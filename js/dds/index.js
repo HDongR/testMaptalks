@@ -24,7 +24,8 @@ quake.setBaseLayer = function () {
       projection: 'EPSG:3857'
       // other properties necessary for spatial reference
     },
-    'urlTemplate': setillayerUrl
+    'urlTemplate': setillayerUrl,
+    debug: true,
   });
 
   setilLayer._getTileExtent = function (x, y, z) {
@@ -92,23 +93,10 @@ quake.setThreeLayer = function () {
   quake.threeLayer.addTo(quake.map);
 }
  
-
-function splitTree(tree, level){
-  if(level >1){
-    return;
-  }
-
-  tree.split();
-  for(var i=0; i<tree.nodes.length; i++){
-    let node = tree.nodes[i];
-    splitTree(node, level + 1);
-  }
-
-}
-
 function fetch_terrain(key, unit, address, level, IDX, IDY, isShow){
+  cacheTerrain[key].startTime = Date.now();
+
   try{
-    
     fetch(address).then(r => {
       const size = r.headers.get("content-length");
       if (Number(size) >= 16900) {
@@ -140,11 +128,11 @@ function fetch_terrain(key, unit, address, level, IDX, IDY, isShow){
             }
           }
           var geometry = new THREE.PlaneGeometry(1, 1, 64, 64);
-          let centerConv = quake.threeLayer.coordinateToVector3(center, 0);
+          let centerConv = coordinateToVector3(center, 0);
 
           for (var i = 0, l = geometry.attributes.position.count; i < l; i++) {
             const z = pdata[i][2] / 80;//.threeLayer.distanceToVector3(pdata[i][2], pdata[i][2]).x;
-            const v = quake.threeLayer.coordinateToVector3([pdata[i][0], pdata[i][1]], z);
+            const v = coordinateToVector3([pdata[i][0], pdata[i][1]], z);
             geometry.attributes.position.setXYZ(i, v.x - centerConv.x, v.y - centerConv.y, v.z);
           }
 
@@ -155,13 +143,16 @@ function fetch_terrain(key, unit, address, level, IDX, IDY, isShow){
 
           loader.setOptions({ imageOrientation: 'flipY' });
           loader.load(address, function (imageBitmap) {
+            
+
+            
             var tx = new THREE.CanvasTexture(imageBitmap);
             material.map = tx;
             //material.side = THREE.DoubleSide;
             material.visible = isShow ? true : false;
             material.needsUpdate = true;
-
-            //이전 줌레벨 켜고 끄는 로직;
+            cacheTerrain[key].isJpeg = true;
+            
           });
           
 
@@ -171,12 +162,15 @@ function fetch_terrain(key, unit, address, level, IDX, IDY, isShow){
 
           quake.threeLayer.addMesh(plane);
 
-          cacheTerrian[key].terrian = plane;
-          cacheTerrian[key].isData = true;
-
+          cacheTerrain[key].terrain = plane;
+          cacheTerrain[key].endTime = Date.now();
 
         });//arraybuffer
       }//16900
+      else{
+
+        cacheTerrain[key].notFind = true;
+      }
     }); //fetch
 
   }catch(e){
@@ -187,7 +181,7 @@ function fetch_terrain(key, unit, address, level, IDX, IDY, isShow){
 
 
 var loader = new THREE.ImageBitmapLoader();
-let cacheTerrian = {};
+let cacheTerrain = {};
 function update() {
   // console.log(quake.map.getZoom());
 
@@ -204,7 +198,6 @@ function update() {
 
 
   let showKeyList = {};
-  let preIdMap = {'_4':{}, '_3':{}, '_2':{}, '_1':{}};
 
   for (var kk = 0; kk < tileGrids.length; kk++) {
     tileGrid = tileGrids[kk];
@@ -226,6 +219,7 @@ function update() {
         resolution = quake.map.getResolution(tileGrid.zoom - 1);
       } else if (kk == 1) {
         continue;
+        //resolution = quake.map.getResolution(tileGrid.zoom);
       } else if (kk == 2) {
         resolution = quake.map.getResolution(tileGrid.zoom);
       }
@@ -285,80 +279,91 @@ function update() {
       const layer = "dem";
       let address = "http://xdworld.vworld.kr:8080/XDServer/requestLayerNode?APIKey=3529523D-2DBA-36B8-98F5-357E880AC0EE&Layer=" + layer + "&Level=" + level + "&IDX=" + IDX + "&IDY=" + IDY;
   
-      let preKey4 = layer + "-" + (level-4) + "-" + Math.floor(IDX / 16) + "-" + Math.floor(IDY / 16);
-      let preKey3 = layer + "-" + (level-3) + "-" + Math.floor(IDX / 8) + "-" + Math.floor(IDY / 8);
-      let preKey2 = layer + "-" + (level-2) + "-" + Math.floor(IDX / 4) + "-" + Math.floor(IDY / 4);
-      let preKey1 = layer + "-" + (level-1) + "-" + Math.floor(IDX / 2) + "-" + Math.floor(IDY / 2);
+      
 
-      preIdMap['_4'][preKey4] = null;
-      preIdMap['_3'][preKey3] = null;
-      preIdMap['_2'][preKey2] = null;
-      preIdMap['_1'][preKey1] = null;
+      // preIdMap['_4'][preKey4] = null;
+      // preIdMap['_3'][preKey3] = null;
+      // preIdMap['_2'][preKey2] = null;
+      // preIdMap['_1'][preKey1] = null;
        
 
       const key = layer + "-" + level + "-" + IDX + "-" + IDY;
       showKeyList[key] = key;
-      const cache = cacheTerrian[key];
+      let cache = cacheTerrain[key];
       if (cache && cache.demUrl == address) {
-        if(cache.terrian){
-          cache.terrian.visible = true;
+        if(cache.terrain){
+          cache.terrain.visible = true;
+        }else if(cache.notFind){
+          // console.log(cache);
+          // let preKey4 = layer + "-" + (level-4) + "-" + Math.floor(IDX / 16) + "-" + Math.floor(IDY / 16);
+          // let preKey3 = layer + "-" + (level-3) + "-" + Math.floor(IDX / 8) + "-" + Math.floor(IDY / 8);
+          // let preKey2 = layer + "-" + (level-2) + "-" + Math.floor(IDX / 4) + "-" + Math.floor(IDY / 4);
+          // let preKey1 = layer + "-" + (level-1) + "-" + Math.floor(IDX / 2) + "-" + Math.floor(IDY / 2);
+
+
+          // let preCache1 = cacheTerrain[preKey1];
+          // let preCache2 = cacheTerrain[preKey2];
+          // let preCache3 = cacheTerrain[preKey3];
+          // let preCache4 = cacheTerrain[preKey4];
+          // if(preCache1 && preCache1.terrain){
+          //   preCache1.terrain.visible = true;
+          //   preCache1.endTime = Date.now();
+          // }else if(preCache2 && preCache2.terrain){
+          //   preCache2.terrain.visible = true;
+          //   preCache2.endTime = Date.now();
+          // }
+            //fetch_terrain(key, unit, address, level, IDX, IDY, true);
+          
         }
+        cache.endTime = Date.now();
         continue;
       }
 
-      
-
-      cacheTerrian[key] = { id: key, level: level, isData: false, isFetch: true, isJpeg: false, demUrl: address, terrian: null };
+      cacheTerrain[key] = { id: key, level: level, isJpeg: false, demUrl: address, terrain: null, IDX, IDY};
 
       fetch_terrain(key, unit, address, level, IDX, IDY, true);
 
-
     }
   }
-  let preMapResultKeys = {};
-  for(k in preIdMap){
-    for(k2 in preIdMap[k]){
-      preMapResultKeys[k2] = null;
-    }
-  }
+ 
+  for(var k in cacheTerrain){
+    let cs = cacheTerrain[k];
+    let terrain = cs.terrain;
+    let level = cs.level;
+    let IDX = cs.IDX;
+    let IDY = cs.IDY;
 
-  // console.log(preIdMap);
-  // console.log(preMapResultKeys, Object.keys(preMapResultKeys).length);
-  for (key in preMapResultKeys){
-    const cache = cacheTerrian[key];
-    if (!cache) {
-      let keySplit = key.split('-');
-      let level = keySplit[1];
-      let IDX = keySplit[2];
-      let IDY = keySplit[3];
-      let address = "http://xdworld.vworld.kr:8080/XDServer/requestLayerNode?APIKey=3529523D-2DBA-36B8-98F5-357E880AC0EE&Layer=dem&Level=" + level + "&IDX=" + IDX + "&IDY=" + IDY;
-
-      cacheTerrian[key] = { id: key, level: level, isData: false, isFetch: true, isJpeg: false, demUrl: address, terrian: null };
-      let unit = 360 / (Math.pow(2, level) * 10);
-      fetch_terrain(key, unit, address, level, IDX, IDY, false);
+    if(terrain){
+      if(showKeyList[k]){
+        terrain.visible = true;
+      }else{
+        terrain.visible = false;
+      }
     }
     
-  }
-
-  for(var k in cacheTerrian){
-    let cs = cacheTerrian[k];
-    let ct = cs.terrian;
-    let level = cs.level;
-    if(!ct){
-      continue;
+    if(cs.startTime - cs.time > 5000 && !cs.endTime){ //로딩못한 경우
+      if(terrain) {
+        deleteTerrain(terrain);
+      }else{
+        delete cacheTerrain[k];
+      }
     }
-    if(showKeyList[k]){
-      //ct.visible = true;
-    }else{
-      //ct.visible = false;
-      // quake.threeLayer.removeMesh(ct);
-      // ct.geometry.dispose();
-      // for (const key in ct) {
-      //     ct[key] = null;
-      // }
-      // ct = null;
 
-      // delete cacheTerrian[k];
+    let preKey4 = "dem-" + (level-4) + "-" + Math.floor(IDX / 16) + "-" + Math.floor(IDY / 16);
+    let preKey3 = "dem-" + (level-3) + "-" + Math.floor(IDX / 8) + "-" + Math.floor(IDY / 8);
+    let preKey2 = "dem-" + (level-2) + "-" + Math.floor(IDX / 4) + "-" + Math.floor(IDY / 4);
+    let preKey1 = "dem-" + (level-1) + "-" + Math.floor(IDX / 2) + "-" + Math.floor(IDY / 2);
+
+    if (preKey1 in cacheTerrain || preKey2 in cacheTerrain || preKey3 in cacheTerrain || preKey4 in cacheTerrain) {
+      
+    }else{
+      if (Date.now() - cs.endTime > 3000) {
+        if (terrain) {
+          deleteTerrain(terrain);
+        }
+
+        delete cacheTerrain[k];
+      }
     }
   }
   
@@ -380,8 +385,17 @@ function update() {
   document.getElementById('coordinate').innerHTML = '<div><br><br>' + [
     'Center : [' + center.x.toFixed(5) + ', ' + center.y.toFixed(5) + ']',
     'Projected Coordinate : [' + prj.x.toFixed(5) + ', ' + prj.y.toFixed(5) + ']',
-    'Zoom : [' + zoom + ']' + ' minLon minLat: ' + extent.ymin + ' ' + extent.xmin + ' maxLon maxLat: ' + extent.ymax + ' ' + extent.xmax + ' tileCnt:' + Object.keys(cacheTerrian).length
+    'Zoom : [' + zoom + ']' + ' minLon minLat: ' + extent.ymin + ' ' + extent.xmin + ' maxLon maxLat: ' + extent.ymax + ' ' + extent.xmax + ' tileCnt:' + Object.keys(cacheTerrain).length
   ].join('<br>') + '</div>';
+}
+
+function deleteTerrain(terrain){
+  quake.threeLayer.removeMesh(terrain);
+  terrain.geometry.dispose();
+  for (const key in terrain) {
+    terrain[key] = null;
+  }
+  terrain = null;
 }
 
 function animation() {
@@ -393,4 +407,39 @@ function animation() {
   stats.update();
   requestAnimationFrame(animation);
 
+}
+
+function project(coord){
+  //var delta = 1E-7;
+  var rad = Math.PI / 180;
+  var metersPerDegree = 6378137 * Math.PI / 180;
+  var maxLatitude = 85.0511287798;
+  var lon = coord[0];
+  var lat = Math.max(Math.min(maxLatitude, coord[1]), -maxLatitude);
+  var c;
+  if(lat === 0){
+      c = 0;
+  }else{
+      c = Math.log(Math.tan((90 + lat) * rad / 2)) / rad;
+  }
+
+  var x = lon * metersPerDegree;
+  var y = c * metersPerDegree;
+
+  return new maptalks.Coordinate(x, y);
+}
+
+function prjToPoint(coord){
+  var scale = 152.8740565703525;
+  var matrix = [1,-1,0,0];
+  var x = matrix[0] * (coord.x - matrix[2]) / scale;
+  var y = -matrix[1] * (coord.y - matrix[3]) / scale;
+  return new maptalks.Point(x, y);
+}
+
+function coordinateToVector3(coordinate, z) {
+  if (z === void 0) { z = 0; }
+  var p = project(coordinate);
+  var p2 = prjToPoint(p);
+  return new THREE.Vector3(p2.x, p2.y, z);
 }
