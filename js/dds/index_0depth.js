@@ -24,9 +24,11 @@ class MinMaxGUIHelper {
 
 let camera, scene, renderer, controls, stats;
 let target;
+let target2;
 let postScene, postCamera, postMaterial;
 let supportsExtension = true;
 let composer;
+let scene2, surfaceMaterial;
 
 const params = {
     format: THREE.DepthFormat,
@@ -43,7 +45,7 @@ animate();
 function init() {
     
     renderer = new THREE.WebGLRenderer();
-    composer = new THREE.EffectComposer( renderer );
+    
     if ( renderer.capabilities.isWebGL2 === false && renderer.extensions.has( 'WEBGL_depth_texture' ) === false ) {
 
         supportsExtension = false;
@@ -74,12 +76,13 @@ function init() {
 
     // Create a render target with depth texture
     setupRenderTarget();
-
+    composer = new THREE.EffectComposer( renderer, target);
     // Our scene
     setupScene();
 
     // Setup post-processing step
     setupPost();
+    setupSerfaceMaterial();
 
     onWindowResize();
     window.addEventListener( 'resize', onWindowResize );
@@ -98,7 +101,7 @@ function init() {
 
     loadTerrainNetwork();
     
-    setRender();
+   // setRender();
 }
 
 function setRender(){
@@ -108,19 +111,34 @@ function setRender(){
     const renderPass = new THREE.RenderPass( scene, camera );
     composer.addPass( renderPass );
     
+    const depthPass = new THREE.ShaderPass(THREE.SurfaceShader);
+    composer.addPass(depthPass);
 
-    //const glitchPass = new THREE.GlitchPass();
-    //composer.addPass( glitchPass );
+}
 
+function render(){
+    if(false){
+        if(composer){
+            composer.render();
+        }
+    }else{
+        renderer.setRenderTarget( target );
+        renderer.render( scene, camera );
 
-    // renderer.setRenderTarget( target );
-    // renderer.render( scene, camera );
+        surfaceMaterial.uniforms.tDiffuse.value = target.texture;
+        surfaceMaterial.uniforms.tDepth.value = target.depthTexture;
 
-    // postMaterial.uniforms.tDiffuse.value = target.texture;
-    // postMaterial.uniforms.tDepth.value = target.depthTexture;
+        //renderer.setRenderTarget( null );
+        //renderer.render( scene, camera );
 
-    // renderer.setRenderTarget( null );
-    // renderer.render( postScene, postCamera );
+        postMaterial.uniforms.cameraFar.value = camera.far;
+        postMaterial.uniforms.cameraNear.value = camera.near;
+        postMaterial.uniforms.tDiffuse.value = target.texture;
+        postMaterial.uniforms.tDepth.value = target.depthTexture;
+
+        renderer.setRenderTarget( null );
+        renderer.render( scene, camera );
+    }
 }
 
 function updateCamera() {
@@ -145,6 +163,31 @@ function setupRenderTarget() {
     target.depthTexture.format = format;
     target.depthTexture.type = THREE.UnsignedIntType;
 
+    if(target2) target2.dispose();
+    target2 = new THREE.WebGLRenderTarget( window.innerWidth, window.innerHeight );
+    target2.texture.format = THREE.RGBFormat;
+    target2.texture.minFilter = THREE.NearestFilter;
+    target2.texture.magFilter = THREE.NearestFilter;
+    target2.texture.generateMipmaps = false;
+    target2.stencilBuffer = ( format === THREE.DepthStencilFormat ) ? true : false;
+    target2.depthBuffer = true;
+    target2.depthTexture = new THREE.DepthTexture();
+    target2.depthTexture.format = format;
+    target2.depthTexture.type = THREE.UnsignedIntType;
+
+}
+
+function setupSerfaceMaterial(){
+    surfaceMaterial = new THREE.ShaderMaterial({
+        uniforms:THREE.SurfaceShader.uniforms,
+        vertexShader:THREE.SurfaceShader.vertexShader,
+        fragmentShader:THREE.SurfaceShader.fragmentShader,
+
+    });
+
+    surfaceMaterial.uniforms.cameraNear.value = camera.near;
+    surfaceMaterial.uniforms.cameraFar.value = camera.far;
+
 }
 
 function setupPost() {
@@ -154,12 +197,25 @@ function setupPost() {
     //postCamera = new THREE.PerspectiveCamera( 70, window.innerWidth / window.innerHeight, 0.01, 50 );
     postMaterial = new THREE.ShaderMaterial( {
         vertexShader: `
+        #include <packing>
         varying vec2 vUv;
+        uniform sampler2D tDiffuse;
+        uniform sampler2D tDepth;
+        uniform float cameraNear;
+        uniform float cameraFar;
 
+
+        float readDepth( sampler2D depthSampler, vec2 coord ) {
+            float fragCoordZ = texture2D( depthSampler, coord ).x;
+            float viewZ = perspectiveDepthToViewZ( fragCoordZ, cameraNear, cameraFar );
+            return viewZToOrthographicDepth( viewZ, cameraNear, cameraFar );
+        }
         void main() {
             vUv = uv;
+            float depth = readDepth( tDepth, vUv );
             vec3 pos = position;
-            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+            pos.z += (1. - depth)*0.6;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
         }
         `,
         fragmentShader: `
@@ -179,7 +235,7 @@ function setupPost() {
         }
 
         void main() {
-            //vec3 diffuse = texture2D( tDiffuse, vUv ).rgb;
+            vec3 diffuse = texture2D( tDiffuse, vUv ).rgb;
             float depth = readDepth( tDepth, vUv );
 
             gl_FragColor.rgb = vec3( depth );
@@ -203,7 +259,9 @@ function setupPost() {
 function setupScene() {
 
     scene = new THREE.Scene();
+    scene2 = new THREE.Scene();
 
+    
     const geometry = new THREE.TorusKnotGeometry( 1, 0.3, 128, 64 );
     const material = new THREE.MeshBasicMaterial( { color: 'blue' } );
 
@@ -246,11 +304,8 @@ function animate() {
     if ( ! supportsExtension ) return;
 
     requestAnimationFrame( animate );
-
-    if(composer){
-        composer.render();
-        
-    }
+    render();
+    
 
     controls.update(); // required because damping is enabled
 
@@ -464,14 +519,15 @@ async function loadPolygon(e) {
           });
         threeLayer.addTo(map);
         var polygonMesh = threeLayer.toFlatPolygons(polygons.slice(0, Infinity), {altitude:0, topColor: '#fff', interactive: false, }, 
-            new THREE.MeshBasicMaterial( { color: 'blue' } )
+            //new THREE.MeshBasicMaterial( { color: 'blue' } )
+            surfaceMaterial
         );
         polygonMesh.object3d.customId = seq + '_polygon';
         let object3d = polygonMesh.object3d;
 
         object3d.position.x = object3d.position.x - xClamp;
         object3d.position.y = object3d.position.y - yClamp; 
-        object3d.position.z = object3d.position.z + 1.0;
+        object3d.position.z = object3d.position.z + 0.0;
         polygons.length = 0;
         scene.add(object3d);
     }
