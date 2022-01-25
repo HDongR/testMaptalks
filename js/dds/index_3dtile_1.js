@@ -407,7 +407,7 @@ function animation() {
   }
   stats.update();
   requestAnimationFrame(animation);
-
+  console.log(quake.map._zoomLevel, quake.map.cameraPosition);
 }
 
 function project(coord){
@@ -472,11 +472,12 @@ quake.loadTerrainNetwork = async function () {
   }
 
   for (var i = 0; i < idxIdyList.length; i++) {
+      if(i != 11)continue;
       const IDX = idxIdyList[i][0];
       const IDY = idxIdyList[i][1];
       const layer = "dem";
       let address = "http://xdworld.vworld.kr:8080/XDServer/requestLayerNode?APIKey=3529523D-2DBA-36B8-98F5-357E880AC0EE&Layer=" + layer + "&Level=" + level + "&IDX=" + IDX + "&IDY=" + IDY;
-
+      
       fetch(address).then(r => {
           const size = r.headers.get("content-length");
           if (Number(size) >= 16900) {
@@ -521,7 +522,7 @@ quake.loadTerrainNetwork = async function () {
 
                   var material = new THREE.MeshBasicMaterial({/*color: 'hsl(0,100%,50%)',*/ });
                   material.opacity = 1;
-                  material.wireframe = false;
+                  material.wireframe = true;
                   var address = "http://xdworld.vworld.kr:8080/XDServer/requestLayerNode?APIKey=3529523D-2DBA-36B8-98F5-357E880AC0EE&Layer=" + "tile" + "&Level=" + level + "&IDX=" + IDX + "&IDY=" + IDY;
                   textureLoader.load(address, function (tx) {
                       material.map = tx;
@@ -531,7 +532,7 @@ quake.loadTerrainNetwork = async function () {
                   var plane = new THREE.Mesh(geometry, material);
                   quake.threeLayer.addMesh(plane);
                   plane.custom2DExtent = new maptalks.Extent(sData[0], sData[1], eData[0], eData[1]);
-                  terrainList.push(plane);
+                  //terrainList.push(plane);
               });//arraybuffer
           }//16900
       }); //fetch

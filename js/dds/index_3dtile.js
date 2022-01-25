@@ -12,13 +12,23 @@ var geometryCacahe = {};
 quake.viewMap = function () {
   quake.setBaseLayer();
   quake.setThreeLayer();
+
+  $('#loadLine').click( (e) => {
+    loadLine();
+  });
+
+  $('#loadPolygon').click( (e) => {
+    loadPolygon();
+  });
 }
 
 quake.setBaseLayer = function () {
   //basemap : vworld
+  //https://api.vworld.kr/req/wmts/1.0.0/00F3FAFA-5BEC-319D-ADC7-6F87F27D8349/Satellite/16/25908/56257.jpeg
+
   // var url = 'http://api.vworld.kr/req/wmts/1.0.0/' + properties.baseMapAPIKey + '/Base/{z}/{y}/{x}.png'
-  var setillayerUrl = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
-  //var setillayerUrl = 'http://api.vworld.kr/req/wmts/1.0.0/' + 'D6200AF4-16B4-3161-BE8E-1CCDD332A8E3' + '/Satellite/{z}/{y}/{x}.jpeg';
+  //var setillayerUrl = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+  var setillayerUrl = 'http://api.vworld.kr/req/wmts/1.0.0/' + '00F3FAFA-5BEC-319D-ADC7-6F87F27D8349' + '/Satellite/{z}/{y}/{x}.jpeg';
   var setilLayer = new maptalks.TileLayer('tile2', {
     spatialReference: {
       projection: 'EPSG:3857'
@@ -88,9 +98,49 @@ quake.setThreeLayer = function () {
     update();
     
     animation();
+
+    
+    gl.setPixelRatio(window.devicePixelRatio);
+    gl.setSize(window.innerWidth, window.innerHeight);
+
+    setupRenderTarget();
+
+    onWindowResize();
+    window.addEventListener('resize', onWindowResize);
   }
 
   quake.threeLayer.addTo(quake.map);
+} 
+
+function onWindowResize() {
+  let renderer = quake.threeLayer._renderer.context;
+  let camera = quake.threeLayer._renderer.camera;
+
+  const aspect = window.innerWidth / window.innerHeight;
+  camera.aspect = aspect;
+  camera.updateProjectionMatrix();
+
+  const dpr = renderer.getPixelRatio();
+  target.setSize( window.innerWidth * dpr, window.innerHeight * dpr );
+  renderer.setSize( window.innerWidth, window.innerHeight );
+}
+
+let target;
+
+function setupRenderTarget(){
+   
+  if ( target ) target.dispose();
+
+  target = new THREE.WebGLRenderTarget( window.innerWidth, window.innerHeight );
+  target.texture.format = THREE.RGBFormat;
+  target.texture.minFilter = THREE.NearestFilter;
+  target.texture.magFilter = THREE.NearestFilter;
+  target.texture.generateMipmaps = false;
+  target.stencilBuffer = false;
+  target.depthBuffer = true;
+  target.depthTexture = new THREE.DepthTexture();
+  target.depthTexture.format = THREE.DepthFormat;
+  target.depthTexture.type = THREE.UnsignedShortType;
 }
  
 function fetch_terrain(key, unit, address, level, IDX, IDY, isShow){
@@ -403,6 +453,19 @@ function animation() {
   quake.threeLayer._needsUpdate = !quake.threeLayer._needsUpdate;
   if (quake.threeLayer._needsUpdate) {
     quake.threeLayer.renderScene();
+
+    let renderer = quake.threeLayer._renderer.context;
+    let scene = quake.threeLayer._renderer.scene;
+    let camera = quake.threeLayer._renderer.camera;
+    renderer.clear();
+    renderer.setRenderTarget( target );
+    renderer.render( scene, camera );
+    //postMaterial.uniforms.tDiffuse.value = target.texture;
+    //postMaterial.uniforms.tDepth.value = target.depthTexture;
+
+    renderer.setRenderTarget( null );
+    renderer.render( scene, camera ); 
+
   }
   stats.update();
   requestAnimationFrame(animation);
@@ -443,3 +506,140 @@ function coordinateToVector3(coordinate, z) {
   var p2 = prjToPoint(p);
   return new THREE.Vector3(p2.x, p2.y, z);
 }
+
+
+
+
+// var lineMaterial = new THREE.LineBasicMaterial({
+//      color: 0x00ffff,
+//      //opacity: 0.8,
+//      transparent: true,
+//      linewidth: 10,
+// });
+
+var lines = [];
+
+function getMesh(customId) {
+  let resultData = [];
+  const object3ds = quake.threeLayer.getMeshes();
+  for (var i = 0; i < object3ds.length; i++) {
+      let object3d = object3ds[i];
+      if (object3d.object3d) {
+          if (object3d.object3d.__parent) {
+              let o3 = object3d.object3d.__parent;
+              if (o3.customId == customId) {
+                  resultData.push(object3d);
+              }
+          }
+      }
+  }
+
+  return resultData;
+}
+
+
+async function loadLine(e) {
+  let seq = 0;
+  let customId = 'line_' + seq;
+  let res = await fetch('/test/lineTest.geojson');
+  let geojson = await res.json();
+  geojson = JSON.parse(geojson.geojson);
+
+  var lineStrings = maptalks.GeoJSON.toGeometry(geojson);
+
+  var lineMaterial = new THREE.LineMaterial({
+    color: 0x00ffff,
+    transparent: true,
+    // vertexColors: THREE.VertexColors,
+    // side: THREE.BackSide,
+    linewidth: 3, // in pixels
+    // vertexColors: THREE.VertexColors,
+    // dashed: false,
+    wireframe: false,
+  });
+
+  
+  // let lineMaterial = new THREE.ShaderMaterial( {
+  //   transparent : true,
+  //   uniforms: THREE.OnlyLineColorShader.uniforms,
+  //   vertexShader: THREE.OnlyLineColorShader.vertexShader,
+  //   fragmentShader: THREE.OnlyLineColorShader.fragmentShader,
+  //   polygonOffset: true,
+  //   polygonOffsetFactor: zoffSetGenerator.getPolygonOffsetFactor(),
+  //   polygonOffsetUnits: zoffSetGenerator.getPolygonOffsetUnits(),
+  //   depthTest: true,
+  //   blending:  THREE.NormalBlending  ,
+  //   opacity: 0.8,
+  // });
+
+  var timer = 'generate line time';
+  console.time(timer);
+  const mesh = quake.threeLayer.toFatLines(lineStrings, { interactive: false }, lineMaterial);
+  //const mesh = quake.threeLayer.toLines(lineStrings, { interactive: false }, lineMaterial);
+  mesh.customId = customId;
+  lines.push(mesh);
+  quake.threeLayer.addMesh(mesh);
+}
+
+
+
+async function loadPolygon(e) {
+  let seq = 0;
+  let customId = 'polygon_' + seq;
+      
+  let res = await fetch('/test/polygonTest.geojson');
+  let geojson = await res.json();
+
+  let polygons = [];
+
+  geojson.features.forEach(feature => {
+      const geometry = feature.geometry;
+      const type = feature.geometry.type;
+      if (['Polygon', 'MultiPolygon'].includes(type)) {
+          const height = 0;
+          const properties = feature.properties;
+          properties.height = height;
+          const polygon = maptalks.GeoJSON.toGeometry(feature);
+          polygon.setProperties(properties);
+          polygons.push(polygon);
+      }
+
+  });
+  if (polygons.length > 0) {
+
+    // var polygonMaterial1 = new THREE.MeshStandardMaterial({ color: 0xffff00, transparent: true, wireframe:false, opacity:0.8, depthTest:true,    polygonOffset: true,
+    //     polygonOffsetFactor: zoffSetGenerator.getPolygonOffsetFactor(),
+    //     polygonOffsetUnits: zoffSetGenerator.getPolygonOffsetUnits(),
+    //     depthTest: false,
+    //     blending: THREE.AdditiveBlending,
+    //     opacity: 0.8,
+    //     wireframe: false,
+    // });
+    let color = new THREE.Color('#ffff00');
+    let polygonMaterial = new THREE.ShaderMaterial( {
+        transparent : true,
+        uniforms: THREE.SurfaceShader.uniforms,
+        vertexShader: THREE.SurfaceShader.vertexShader,
+        fragmentShader: THREE.SurfaceShader.fragmentShader,
+        // polygonOffset: true,
+        // polygonOffsetFactor: zoffSetGenerator.getPolygonOffsetFactor(),
+        // polygonOffsetUnits: zoffSetGenerator.getPolygonOffsetUnits(),
+        depthTest: true,
+        blending:  THREE.NormalBlending,
+        opacity: 0.8,
+    });
+    polygonMaterial.uniforms.resolution.value.copy(new THREE.Vector2(window.innerWidth, window.innerHeight)); 
+    polygonMaterial.uniforms.r.value = color.r;
+    polygonMaterial.uniforms.g.value = color.g;
+    polygonMaterial.uniforms.b.value = color.b;
+
+    var polygonMesh = quake.threeLayer.toFlatPolygons(polygons.slice(0, Infinity), {altitude:0, topColor: '#fff', interactive: false, }, polygonMaterial);
+    polygonMesh.object3d.customId = seq + '_polygon';
+    
+    quake.threeLayer.addMesh(polygonMesh); 
+  
+    polygons.length = 0;
+
+  }
+}
+  

@@ -65,6 +65,9 @@
 
         <script type="text/javascript" src="/js/maptalks/maptalks.three.js"></script>
         <script type="text/javascript" src="/js/util/quadtree.js"></script>
+        <script type="text/javascript" src="/js/dds/shader/surface_fragment.glsl.js"></script>
+        <script type="text/javascript" src="/js/dds/shader/surface_fragment_terrain.glsl.js"></script>
+            
  
 
     </head>
@@ -72,10 +75,10 @@
         <div id="map" class="container">
             
         </div>
-        <div id="coordinate"><span style="margin-left: 100px;" id="resultHeight"></span>
-            <button style="margin-left: 10px;" id="loadBuilding">loadBuilding</button>
-            <button style="margin-left: 10px;" id="loadTerrain" disabled>loadTerrain</button>
-            <button style="margin-left: 10px;" id="loadBuilding2" disabled>loadBuilding2</button>
+        <div id="coordinate"></div>
+        <div id="uiBtn" style="margin-left:100px;position:fixed;left:0px;top:0px;width:100%;height:95px;overflow:hidden">
+            <button style="margin-left: 10px;" id="loadLine">loadLine</button>
+            <button style="margin-left: 10px;" id="loadPolygon">loadPolygon</button>
         </div>
         <!-- <canvas id="c" width="1024" height="700"></div> -->
     </body>

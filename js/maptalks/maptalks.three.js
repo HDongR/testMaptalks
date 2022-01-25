@@ -4689,7 +4689,7 @@
             _this._colorMap = {};
             _this._initBaseObjectsEvent(flatPolygons);
             if (!asynchronous) {
-                _this._setPickObject3d();
+                //_this._setPickObject3d();
                 _this._init();
             }
             _this.type = 'FlatPolygons';

@@ -1,0 +1,26 @@
+{
+  "name": "testmaptalks",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "directories": {
+    "test": "test"
+  },
+  "dependencies": {
+    "maptalks.three": "^0.20.0",
+    "three-instanced-mesh": "^0.96.2"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/HDongR/testVworld.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/HDongR/testVworld/issues"
+  },
+  "homepage": "https://github.com/HDongR/testVworld#readme"
+}
