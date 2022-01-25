@@ -26,6 +26,7 @@ let camera, scene, renderer, controls, stats;
 let target;
 let postScene, postCamera, postMaterial;
 let supportsExtension = true;
+let composer;
 
 const params = {
     format: THREE.DepthFormat,
@@ -38,10 +39,11 @@ const types = { UnsignedShortType: THREE.UnsignedShortType, UnsignedIntType: THR
 init();
 animate();
 
+
 function init() {
-
+    
     renderer = new THREE.WebGLRenderer();
-
+    composer = new THREE.EffectComposer( renderer );
     if ( renderer.capabilities.isWebGL2 === false && renderer.extensions.has( 'WEBGL_depth_texture' ) === false ) {
 
         supportsExtension = false;
@@ -95,7 +97,30 @@ function init() {
     gui.open();
 
     loadTerrainNetwork();
+    
+    setRender();
+}
 
+function setRender(){
+    const clearPass = new THREE.ClearPass();
+    composer.addPass( clearPass );
+
+    const renderPass = new THREE.RenderPass( scene, camera );
+    composer.addPass( renderPass );
+    
+
+    //const glitchPass = new THREE.GlitchPass();
+    //composer.addPass( glitchPass );
+
+
+    // renderer.setRenderTarget( target );
+    // renderer.render( scene, camera );
+
+    // postMaterial.uniforms.tDiffuse.value = target.texture;
+    // postMaterial.uniforms.tDepth.value = target.depthTexture;
+
+    // renderer.setRenderTarget( null );
+    // renderer.render( postScene, postCamera );
 }
 
 function updateCamera() {
@@ -222,16 +247,10 @@ function animate() {
 
     requestAnimationFrame( animate );
 
-    // render scene into target
-    renderer.setRenderTarget( target );
-    renderer.render( scene, camera );
-
-    // render post FX
-    postMaterial.uniforms.tDiffuse.value = target.texture;
-    postMaterial.uniforms.tDepth.value = target.depthTexture;
-
-    renderer.setRenderTarget( null );
-    renderer.render( postScene, postCamera );
+    if(composer){
+        composer.render();
+        
+    }
 
     controls.update(); // required because damping is enabled
 
