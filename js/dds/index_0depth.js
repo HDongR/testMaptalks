@@ -15,7 +15,7 @@ class MinMaxGUIHelper {
     }
     get max() {
         return this.obj[this.maxProp];
-    }
+    } 
     set max(v) {
         this.obj[this.maxProp] = v;
         this.min = this.min;
