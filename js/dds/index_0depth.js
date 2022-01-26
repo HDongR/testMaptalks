@@ -130,14 +130,12 @@ function render(){
 
         //renderer.setRenderTarget( null );
         //renderer.render( scene, camera );
-
-        postMaterial.uniforms.cameraFar.value = camera.far;
-        postMaterial.uniforms.cameraNear.value = camera.near;
+ 
         postMaterial.uniforms.tDiffuse.value = target.texture;
         postMaterial.uniforms.tDepth.value = target.depthTexture;
 
         renderer.setRenderTarget( null );
-        renderer.render( scene, camera );
+        renderer.render( postScene, postCamera );
     }
 }
 
@@ -207,15 +205,12 @@ function setupPost() {
 
         float readDepth( sampler2D depthSampler, vec2 coord ) {
             float fragCoordZ = texture2D( depthSampler, coord ).x;
-            float viewZ = perspectiveDepthToViewZ( fragCoordZ, cameraNear, cameraFar );
-            return viewZToOrthographicDepth( viewZ, cameraNear, cameraFar );
+            return perspectiveDepthToViewZ( fragCoordZ, cameraNear, cameraFar );
+           // return viewZToOrthographicDepth( viewZ, cameraNear, cameraFar );
         }
         void main() {
-            vUv = uv;
-            float depth = readDepth( tDepth, vUv );
-            vec3 pos = position;
-            pos.z += (1. - depth)*0.6;
-            gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
+            vUv = uv; 
+            gl_Position = projectionMatrix * vec4(position, 1.0);
         }
         `,
         fragmentShader: `
@@ -237,9 +232,12 @@ function setupPost() {
         void main() {
             vec3 diffuse = texture2D( tDiffuse, vUv ).rgb;
             float depth = readDepth( tDepth, vUv );
-
-            gl_FragColor.rgb = vec3( depth );
-            gl_FragColor.a = 1.0;
+            if(depth > 0.9){
+                gl_FragColor = vec4(1.0,0.,0.,1.);
+            }else{
+                gl_FragColor.rgb = vec3( depth );
+                gl_FragColor.a = 1.0;
+            }
         }
         `,
         uniforms: {

@@ -43,12 +43,19 @@ THREE.SurfaceShader = {
         '   return viewZToOrthographicDepth(viewZ, cameraNear, cameraFar);',
         '}',
         
+        'float readZ(sampler2D depthSampler, vec2 coord){',
+        '   float fragCoordZ = texture2D(depthSampler, coord).x;',
+        '   return fragCoordZ;',
+        '}',
+        '',
 		'void main() {',
 		'	vUv = uv;',
+        '   float read = readZ(tDepth, vUv);',
+        '   float getD = getDepth(vUv);',
         '   float depth = readDepth(tDepth, vUv);',
         '   float viewZ = getViewZ(depth);',
         '   vec3 pos = position;',
-        '   pos.z = depth;',
+        '   pos.z = read;',
 		'	gl_Position = projectionMatrix * modelViewMatrix * vec4( pos, 1.0 );',
 
 		'}'
